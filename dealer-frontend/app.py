@@ -6,6 +6,7 @@ from yaml.loader import SafeLoader
 import importlib
 import sys
 import os
+from pages.vehicle_intelligence import app as intelligence_app
 
 # st.write("Current path:", os.getcwd())
 # st.write("Files here:", os.listdir())
@@ -49,7 +50,8 @@ if st.session_state.get("authentication_status"):
         "Vehicle Intelligence": {
             "VIN Lookup": "pages.vehicle.vin_lookup",
             "Add Vehicle": "pages.vehicle.add_vehicle",
-            "Inventory": "pages.vehicle.inventory"
+            "Inventory": "pages.vehicle.inventory",
+            "Analytics Dashboard": "pages.vehicle.vehicle_intelligence"
         },
         "Market Intelligence": {
             "Market Search": "pages.market.market_search",
