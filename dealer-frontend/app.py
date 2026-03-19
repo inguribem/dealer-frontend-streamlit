@@ -7,9 +7,9 @@ import importlib
 import sys
 import os
 
-st.write("Current path:", os.getcwd())
-st.write("Files here:", os.listdir())
-st.write("Frontend files:", os.listdir(os.path.dirname(__file__)))
+# st.write("Current path:", os.getcwd())
+# st.write("Files here:", os.listdir())
+# st.write("Frontend files:", os.listdir(os.path.dirname(__file__)))
 
 # -----------------------
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
