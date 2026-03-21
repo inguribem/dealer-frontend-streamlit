@@ -7,177 +7,177 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 ROWS_PER_PAGE = 10
 
 
-# -------------------------
-# SAFE AVG FUNCTION
-# -------------------------
-def safe_avg(df, column):
-    if column not in df.columns:
-        return 0
-    s = pd.to_numeric(df[column], errors="coerce").dropna()
-    return int(s.mean()) if not s.empty else 0
-
-
 def app():
+
     st.title("🚗 Vehicle Inventory")
 
     # -------------------------
-    # LOAD DATA
+    # SESSION STATE INIT
+    # -------------------------
+    if "page" not in st.session_state:
+        st.session_state.page = 1
+
+    if "filters" not in st.session_state:
+        st.session_state.filters = {}
+
+    if "sort_column" not in st.session_state:
+        st.session_state.sort_column = "year"
+        st.session_state.sort_ascending = False
+
+    # -------------------------
+    # LOAD DATA FOR FILTER OPTIONS
     # -------------------------
     try:
-        data = requests.get(f"{API_URL}/vehicles/inventory").json()
-        df = pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Failed to load inventory: {e}")
+        all_data = requests.get(f"{API_URL}/vehicles/inventory").json()
+        df_all = pd.DataFrame(all_data)
+    except:
+        st.error("Failed to load inventory")
         return
 
-    if df.empty:
+    if df_all.empty:
         st.warning("No vehicles found")
         return
 
+    # =========================================================
+    # 🔥 FILTERS (NOW INSIDE PAGE - TOP SECTION)
+    # =========================================================
+    st.subheader("Filters")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        search = st.text_input(
+            "Search",
+            value=st.session_state.filters.get("search", "")
+        )
+
+    with col2:
+        makes = sorted(df_all["make"].dropna().unique())
+        selected_make = st.selectbox(
+            "Make",
+            ["All"] + list(makes),
+            index=(["All"] + list(makes)).index(
+                st.session_state.filters.get("make", "All")
+            )
+        )
+
+    with col3:
+        years = sorted(df_all["year"].dropna().unique())
+        selected_year = st.selectbox(
+            "Year",
+            ["All"] + list(years),
+            index=(["All"] + list(years)).index(
+                str(st.session_state.filters.get("year", "All"))
+            )
+        )
+
+    with col4:
+        apply_filters = st.button("Apply Filters")
+        clear_filters = st.button("Clear")
+
     # -------------------------
-    # SIDEBAR FILTERS
+    # APPLY / CLEAR FILTERS
     # -------------------------
-    st.sidebar.header("🔍 Filters")
+    if apply_filters:
+        st.session_state.filters = {
+            "search": search,
+            "make": selected_make,
+            "year": selected_year
+        }
+        st.session_state.page = 1
+        st.rerun()
 
-    search = st.sidebar.text_input("Search")
-
-    makes = ["All"] + sorted(df["make"].dropna().unique().tolist())
-    selected_make = st.sidebar.selectbox("Make", makes)
-
-    years = ["All"] + sorted(df["year"].dropna().astype(str).unique().tolist())
-    selected_year = st.sidebar.selectbox("Year", years)
-
-    # Apply filters
-    if search:
-        df = df[df.apply(lambda row: search.lower() in str(row).lower(), axis=1)]
-
-    if selected_make != "All":
-        df = df[df["make"] == selected_make]
-
-    if selected_year != "All":
-        df = df[df["year"] == int(selected_year)]
-
-    # -------------------------
-    # METRICS
-    # -------------------------
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Total Vehicles", len(df))
-    col2.metric("Avg Price", f"${safe_avg(df, 'price'):,}")
-    col3.metric("Avg Miles", f"{safe_avg(df, 'miles'):,}")
+    if clear_filters:
+        st.session_state.filters = {}
+        st.session_state.page = 1
+        st.rerun()
 
     st.divider()
 
-    # -------------------------
+    # =========================================================
+    # BUILD API PARAMS
+    # =========================================================
+    params = {}
+    filters = st.session_state.filters
+
+    if filters.get("search"):
+        params["search"] = filters["search"]
+
+    if filters.get("make") and filters["make"] != "All":
+        params["make"] = filters["make"]
+
+    if filters.get("year") and filters["year"] != "All":
+        params["year"] = int(filters["year"])
+
+    # =========================================================
+    # FETCH FILTERED DATA
+    # =========================================================
+    try:
+        r = requests.get(f"{API_URL}/vehicles/inventory", params=params)
+        vehicles = r.json()
+        df = pd.DataFrame(vehicles)
+    except:
+        st.error("Error fetching filtered data")
+        return
+
+    if df.empty:
+        st.info("No vehicles found with the given filters.")
+        return
+
+    # =========================================================
     # SORTING
-    # -------------------------
-    col_sort1, col_sort2 = st.columns(2)
+    # =========================================================
+    cols = ["vin", "year", "make", "model", "price", "miles"]
 
-    sort_col = col_sort1.selectbox("Sort by", ["year", "price", "miles"])
-    sort_order = col_sort2.radio("Order", ["Desc", "Asc"], horizontal=True)
+    col_sort = st.selectbox(
+        "Sort by",
+        cols,
+        index=cols.index(st.session_state.sort_column)
+    )
 
-    df[sort_col] = pd.to_numeric(df[sort_col], errors="coerce")
-    df = df.sort_values(by=sort_col, ascending=(sort_order == "Asc"))
+    asc_sort = st.radio(
+        "Order",
+        ["Ascending", "Descending"],
+        index=0 if st.session_state.sort_ascending else 1
+    )
 
-    # -------------------------
-    # PAGINATION (FIXED)
-    # -------------------------
-    if "inventory_page" not in st.session_state:
-        st.session_state.inventory_page = 1
+    st.session_state.sort_column = col_sort
+    st.session_state.sort_ascending = (asc_sort == "Ascending")
 
+    df = df.sort_values(
+        by=st.session_state.sort_column,
+        ascending=st.session_state.sort_ascending
+    )
+
+    # =========================================================
+    # PAGINATION (FIXED TYPE ISSUE)
+    # =========================================================
     total_pages = (len(df) - 1) // ROWS_PER_PAGE + 1
-    page = st.session_state.inventory_page
 
-    start = (page - 1) * ROWS_PER_PAGE
-    df_page = df.iloc[start:start + ROWS_PER_PAGE]
+    start_idx = (int(st.session_state.page) - 1) * ROWS_PER_PAGE
+    end_idx = start_idx + ROWS_PER_PAGE
 
-    # -------------------------
-    # INVENTORY LIST (CARD UI)
-    # -------------------------
-    st.subheader("Inventory")
+    df_page = df.iloc[start_idx:end_idx]
 
-    for _, row in df_page.iterrows():
-        with st.container():
-            col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
-
-            col1.markdown(
-                f"**{row.get('year','')} {row.get('make','')} {row.get('model','')}**"
-            )
-            col2.write(f"${row.get('price','-')}")
-            col3.write(f"{row.get('miles','-')} mi")
-
-            if col4.button("✏️", key=f"edit_{row['vin']}"):
-                st.session_state.edit_vehicle = row
-
-            if col5.button("🗑", key=f"delete_{row['vin']}"):
-                st.session_state.delete_vehicle = row["vin"]
-
-            st.divider()
-
-    # -------------------------
-    # PAGINATION CONTROLS
-    # -------------------------
     col1, col2, col3 = st.columns(3)
 
-    if col1.button("⬅️ Prev") and page > 1:
-        st.session_state.inventory_page -= 1
-        st.rerun()
-
-    col2.markdown(f"### Page {page} / {total_pages}")
-
-    if col3.button("Next ➡️") and page < total_pages:
-        st.session_state.inventory_page += 1
-        st.rerun()
-
-    # -------------------------
-    # EDIT VEHICLE
-    # -------------------------
-    if st.session_state.get("edit_vehicle") is not None:
-        v = st.session_state.edit_vehicle
-
-        with st.expander(f"✏️ Editing {v['vin']}", expanded=True):
-            col1, col2 = st.columns(2)
-
-            with col1:
-                year = st.text_input("Year", v.get("year", ""))
-                make = st.text_input("Make", v.get("make", ""))
-                model = st.text_input("Model", v.get("model", ""))
-
-            with col2:
-                price = st.text_input("Price", v.get("price", ""))
-                miles = st.text_input("Miles", v.get("miles", ""))
-
-            if st.button("Save Changes"):
-                payload = {
-                    "year": year,
-                    "make": make,
-                    "model": model,
-                    "price": price or None,
-                    "miles": miles or None,
-                }
-
-                requests.put(f"{API_URL}/vehicles/{v['vin']}", json=payload)
-
-                st.success("Vehicle updated")
-                st.session_state.edit_vehicle = None
-                st.rerun()
-
-    # -------------------------
-    # DELETE CONFIRMATION
-    # -------------------------
-    if st.session_state.get("delete_vehicle"):
-        vin = st.session_state.delete_vehicle
-
-        st.warning(f"Delete vehicle {vin}?")
-
-        col1, col2 = st.columns(2)
-
-        if col1.button("Confirm Delete"):
-            requests.delete(f"{API_URL}/vehicles/{vin}")
-            st.success("Vehicle deleted")
-            st.session_state.delete_vehicle = None
+    with col1:
+        if st.button("Previous") and st.session_state.page > 1:
+            st.session_state.page -= 1
             st.rerun()
 
-        if col2.button("Cancel"):
-            st.session_state.delete_vehicle = None
+    with col2:
+        st.markdown(f"Page **{st.session_state.page}** of **{total_pages}**")
+
+    with col3:
+        if st.button("Next") and st.session_state.page < total_pages:
+            st.session_state.page += 1
             st.rerun()
+
+    # =========================================================
+    # TABLE
+    # =========================================================
+    df_table = df_page[["vin", "year", "make", "model", "price", "miles"]].copy()
+    df_table.columns = ["VIN", "Year", "Make", "Model", "Price", "Miles"]
+
+    st.dataframe(df_table, use_container_width=True)
