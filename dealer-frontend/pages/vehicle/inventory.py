@@ -6,7 +6,13 @@ import os
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 ROWS_PER_PAGE = 10
 
-##
+
+def safe_avg(df, column):
+    if column not in df.columns:
+        return 0
+    s = pd.to_numeric(df[column], errors="coerce").dropna()
+    return int(s.mean()) if not s.empty else 0
+
 
 def app():
     st.set_page_config(layout="wide")
@@ -18,8 +24,8 @@ def app():
     try:
         data = requests.get(f"{API_URL}/vehicles/inventory").json()
         df = pd.DataFrame(data)
-    except:
-        st.error("Failed to load inventory")
+    except Exception as e:
+        st.error(f"Failed to load inventory: {e}")
         return
 
     if df.empty:
@@ -50,12 +56,13 @@ def app():
         df = df[df["year"] == int(selected_year)]
 
     # -------------------------
-    # METRICS (TOP SUMMARY)
+    # METRICS
     # -------------------------
     col1, col2, col3 = st.columns(3)
+
     col1.metric("Total Vehicles", len(df))
-    col2.metric("Avg Price", f"${int(df['price'].mean()) if 'price' in df else 0}")
-    col3.metric("Avg Miles", f"{int(df['miles'].mean()) if 'miles' in df else 0}")
+    col2.metric("Avg Price", f"${safe_avg(df, 'price'):,}")
+    col3.metric("Avg Miles", f"{safe_avg(df, 'miles'):,}")
 
     st.divider()
 
@@ -67,35 +74,39 @@ def app():
     sort_col = col_sort1.selectbox("Sort by", ["year", "price", "miles"])
     sort_order = col_sort2.radio("Order", ["Desc", "Asc"], horizontal=True)
 
+    df[sort_col] = pd.to_numeric(df[sort_col], errors="coerce")
     df = df.sort_values(by=sort_col, ascending=(sort_order == "Asc"))
 
     # -------------------------
     # PAGINATION
     # -------------------------
+    if "page" not in st.session_state:
+        st.session_state.page = 1
+
     total_pages = (len(df) - 1) // ROWS_PER_PAGE + 1
-    page = st.session_state.get("page", 1)
+    page = st.session_state.page
 
     start = (page - 1) * ROWS_PER_PAGE
     df_page = df.iloc[start:start + ROWS_PER_PAGE]
 
     # -------------------------
-    # TABLE DISPLAY
+    # INVENTORY LIST (CARD STYLE)
     # -------------------------
     st.subheader("Inventory")
 
     for _, row in df_page.iterrows():
         with st.container():
-            col1, col2, col3, col4, col5 = st.columns([2,1,1,1,1])
+            col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
 
-            col1.write(f"**{row['year']} {row['make']} {row['model']}**")
+            col1.markdown(f"**{row.get('year','')} {row.get('make','')} {row.get('model','')}**")
             col2.write(f"${row.get('price','-')}")
             col3.write(f"{row.get('miles','-')} mi")
 
-            if col4.button("✏️ Edit", key=f"edit_{row['vin']}"):
+            if col4.button("✏️", key=f"edit_{row['vin']}"):
                 st.session_state.edit_vehicle = row
 
-            if col5.button("🗑 Delete", key=f"del_{row['vin']}"):
-                st.session_state.delete_vehicle = row['vin']
+            if col5.button("🗑", key=f"delete_{row['vin']}"):
+                st.session_state.delete_vehicle = row["vin"]
 
             st.divider()
 
@@ -105,28 +116,28 @@ def app():
     col1, col2, col3 = st.columns(3)
 
     if col1.button("⬅️ Prev") and page > 1:
-        st.session_state.page = page - 1
+        st.session_state.page -= 1
         st.rerun()
 
     col2.markdown(f"### Page {page} / {total_pages}")
 
     if col3.button("Next ➡️") and page < total_pages:
-        st.session_state.page = page + 1
+        st.session_state.page += 1
         st.rerun()
 
     # -------------------------
-    # EDIT MODAL (EXPANDER)
+    # EDIT VEHICLE
     # -------------------------
-    if "edit_vehicle" in st.session_state and st.session_state.edit_vehicle is not None:
+    if st.session_state.get("edit_vehicle") is not None:
         v = st.session_state.edit_vehicle
 
         with st.expander(f"✏️ Editing {v['vin']}", expanded=True):
             col1, col2 = st.columns(2)
 
             with col1:
-                year = st.text_input("Year", v["year"])
-                make = st.text_input("Make", v["make"])
-                model = st.text_input("Model", v["model"])
+                year = st.text_input("Year", v.get("year", ""))
+                make = st.text_input("Make", v.get("make", ""))
+                model = st.text_input("Model", v.get("model", ""))
 
             with col2:
                 price = st.text_input("Price", v.get("price", ""))
@@ -140,26 +151,29 @@ def app():
                     "price": price or None,
                     "miles": miles or None,
                 }
+
                 requests.put(f"{API_URL}/vehicles/{v['vin']}", json=payload)
-                st.success("Updated!")
+
+                st.success("Vehicle updated")
                 st.session_state.edit_vehicle = None
                 st.rerun()
 
     # -------------------------
-    # DELETE CONFIRM
+    # DELETE CONFIRMATION
     # -------------------------
-    if "delete_vehicle" in st.session_state and st.session_state.delete_vehicle:
+    if st.session_state.get("delete_vehicle"):
         vin = st.session_state.delete_vehicle
 
         st.warning(f"Delete vehicle {vin}?")
 
         col1, col2 = st.columns(2)
 
-        if col1.button("Confirm"):
+        if col1.button("Confirm Delete"):
             requests.delete(f"{API_URL}/vehicles/{vin}")
-            st.success("Deleted")
+            st.success("Vehicle deleted")
             st.session_state.delete_vehicle = None
             st.rerun()
 
         if col2.button("Cancel"):
             st.session_state.delete_vehicle = None
+            st.rerun()
