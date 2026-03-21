@@ -6,206 +6,159 @@ import os
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 ROWS_PER_PAGE = 10
 
-def app():
 
+def app():
+    st.set_page_config(layout="wide")
     st.title("🚗 Vehicle Inventory")
 
     # -------------------------
-    # LOAD ALL DATA FOR FILTERS
+    # LOAD DATA
     # -------------------------
     try:
-        all_data = requests.get(f"{API_URL}/vehicles/inventory").json()
-        df_all = pd.DataFrame(all_data)
+        data = requests.get(f"{API_URL}/vehicles/inventory").json()
+        df = pd.DataFrame(data)
     except:
         st.error("Failed to load inventory")
         return
 
-    if df_all.empty:
+    if df.empty:
         st.warning("No vehicles found")
         return
 
     # -------------------------
-    # SESSION STATE INIT
+    # SIDEBAR FILTERS
     # -------------------------
-    if "filters" not in st.session_state:
-        st.session_state.filters = {}
-    if "edit_vehicle" not in st.session_state:
-        st.session_state.edit_vehicle = None
-    if "delete_vehicle" not in st.session_state:
-        st.session_state.delete_vehicle = None
-    if "page" not in st.session_state:
-        st.session_state.page = 1
-    if "sort_column" not in st.session_state:
-        st.session_state.sort_column = "year"
-        st.session_state.sort_ascending = False
+    st.sidebar.header("🔍 Filters")
+
+    search = st.sidebar.text_input("Search")
+
+    makes = ["All"] + sorted(df["make"].dropna().unique().tolist())
+    selected_make = st.sidebar.selectbox("Make", makes)
+
+    years = ["All"] + sorted(df["year"].dropna().astype(str).unique().tolist())
+    selected_year = st.sidebar.selectbox("Year", years)
+
+    # Apply filters
+    if search:
+        df = df[df.apply(lambda row: search.lower() in str(row).lower(), axis=1)]
+
+    if selected_make != "All":
+        df = df[df["make"] == selected_make]
+
+    if selected_year != "All":
+        df = df[df["year"] == int(selected_year)]
 
     # -------------------------
-    # FILTERS UI
+    # METRICS (TOP SUMMARY)
     # -------------------------
-    st.subheader("Filters")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        search = st.text_input("🔍 Search", value=st.session_state.filters.get("search",""))
-    with col2:
-        makes = sorted(df_all["make"].dropna().unique())
-        selected_make = st.selectbox("Make", ["All"] + list(makes),
-                                     index=(["All"] + list(makes)).index(st.session_state.filters.get("make","All")))
-    with col3:
-        years = sorted(df_all["year"].dropna().unique())
-        selected_year = st.selectbox("Year", ["All"] + list(years),
-                                     index=(["All"] + list(years)).index(str(st.session_state.filters.get("year","All"))))
-    with col4:
-        apply_filters = st.button("Apply")
-        clear_filters = st.button("Clear")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Vehicles", len(df))
+    col2.metric("Avg Price", f"${int(df['price'].mean()) if 'price' in df else 0}")
+    col3.metric("Avg Miles", f"{int(df['miles'].mean()) if 'miles' in df else 0}")
 
-    # -------------------------
-    # APPLY FILTERS
-    # -------------------------
-    if apply_filters:
-        st.session_state.filters = {"search": search, "make": selected_make, "year": selected_year}
-        st.session_state.page = 1  # reset page
-    if clear_filters:
-        st.session_state.filters = {}
-        st.session_state.page = 1
-        st.rerun()
-
-    # -------------------------
-    # BUILD PARAMS
-    # -------------------------
-    params = {}
-    filters = st.session_state.filters
-    if filters.get("search"):
-        params["search"] = filters["search"]
-    if filters.get("make") and filters["make"] != "All":
-        params["make"] = filters["make"]
-    if filters.get("year") and filters["year"] != "All":
-        params["year"] = int(filters["year"])
-
-    # -------------------------
-    # FETCH FILTERED DATA
-    # -------------------------
-    try:
-        r = requests.get(f"{API_URL}/vehicles/inventory", params=params)
-        vehicles = r.json()
-        df = pd.DataFrame(vehicles)
-    except:
-        st.error("Error fetching filtered data")
-        return
-
-    if df.empty:
-        st.info("No vehicles found with the given filters.")
-        return
+    st.divider()
 
     # -------------------------
     # SORTING
     # -------------------------
-    cols = ["vin", "year", "make", "model", "price", "miles"]
-    st.write("Sort by:")
-    col_sort = st.selectbox("Column", cols, index=cols.index(st.session_state.sort_column))
-    asc_sort = st.radio("Order", ["Ascending", "Descending"],
-                        index=0 if st.session_state.sort_ascending else 1)
-    st.session_state.sort_column = col_sort
-    st.session_state.sort_ascending = True if asc_sort=="Ascending" else False
+    col_sort1, col_sort2 = st.columns(2)
 
-    df = df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
+    sort_col = col_sort1.selectbox("Sort by", ["year", "price", "miles"])
+    sort_order = col_sort2.radio("Order", ["Desc", "Asc"], horizontal=True)
+
+    df = df.sort_values(by=sort_col, ascending=(sort_order == "Asc"))
 
     # -------------------------
     # PAGINATION
     # -------------------------
     total_pages = (len(df) - 1) // ROWS_PER_PAGE + 1
-    start_idx = (st.session_state.page - 1) * ROWS_PER_PAGE
-    end_idx = start_idx + ROWS_PER_PAGE
-    df_page = df.iloc[start_idx:end_idx]
+    page = st.session_state.get("page", 1)
 
+    start = (page - 1) * ROWS_PER_PAGE
+    df_page = df.iloc[start:start + ROWS_PER_PAGE]
+
+    # -------------------------
+    # TABLE DISPLAY
+    # -------------------------
+    st.subheader("Inventory")
+
+    for _, row in df_page.iterrows():
+        with st.container():
+            col1, col2, col3, col4, col5 = st.columns([2,1,1,1,1])
+
+            col1.write(f"**{row['year']} {row['make']} {row['model']}**")
+            col2.write(f"${row.get('price','-')}")
+            col3.write(f"{row.get('miles','-')} mi")
+
+            if col4.button("✏️ Edit", key=f"edit_{row['vin']}"):
+                st.session_state.edit_vehicle = row
+
+            if col5.button("🗑 Delete", key=f"del_{row['vin']}"):
+                st.session_state.delete_vehicle = row['vin']
+
+            st.divider()
+
+    # -------------------------
+    # PAGINATION CONTROLS
+    # -------------------------
     col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Previous") and st.session_state.page > 1:
-            st.session_state.page -= 1
-            st.rerun()
-    with col2:
-        st.markdown(f"Page {st.session_state.page} of {total_pages}")
-    with col3:
-        if st.button("Next") and st.session_state.page < total_pages:
-            st.session_state.page += 1
-            st.rerun()
+
+    if col1.button("⬅️ Prev") and page > 1:
+        st.session_state.page = page - 1
+        st.rerun()
+
+    col2.markdown(f"### Page {page} / {total_pages}")
+
+    if col3.button("Next ➡️") and page < total_pages:
+        st.session_state.page = page + 1
+        st.rerun()
 
     # -------------------------
-    # FORMAT TABLE
+    # EDIT MODAL (EXPANDER)
     # -------------------------
-    df_table = df_page[["vin","year","make","model","price","miles"]].copy()
-    df_table.columns = ["VIN","Year","Make","Model","Price","Miles"]
-    df_table["Edit"] = False
-    df_table["Delete"] = False
-
-    edited_df = st.data_editor(
-        df_table,
-        use_container_width=True,
-        hide_index=True,
-        key="data_editor",
-        column_config={
-            "Edit": st.column_config.CheckboxColumn("Edit"),
-            "Delete": st.column_config.CheckboxColumn("Delete")
-        }
-    )
-
-    # -------------------------
-    # HANDLE ACTIONS
-    # -------------------------
-    for i, row in edited_df.iterrows():
-        vin = row["VIN"]
-        original_row = df[df["vin"]==vin].iloc[0]
-        if row["Delete"]:
-            st.session_state.delete_vehicle = vin
-        if row["Edit"]:
-            st.session_state.edit_vehicle = original_row
-
-    # -------------------------
-    # EDIT FORM
-    # -------------------------
-    if st.session_state.edit_vehicle is not None:
+    if "edit_vehicle" in st.session_state and st.session_state.edit_vehicle is not None:
         v = st.session_state.edit_vehicle
-        st.divider()
-        st.subheader(f"Edit Vehicle {v['vin']}")
-        col1, col2 = st.columns(2)
-        with col1:
-            year = st.text_input("Year", v["year"])
-            make = st.text_input("Make", v["make"])
-            model = st.text_input("Model", v["model"])
-        with col2:
-            price = st.text_input("Price", v.get("price",""))
-            miles = st.text_input("Miles", v.get("miles",""))
 
-        if st.button("Update Vehicle"):
-            payload = {
-                "year": year,
-                "make": make,
-                "model": model,
-                "trim": v.get("trim",""),
-                "price": price or None,
-                "miles": miles or None,
-                "dealer_name": v.get("dealer_name",""),
-                "city": v.get("city",""),
-                "state": v.get("state","")
-            }
-            requests.put(f"{API_URL}/vehicles/{v['vin']}", json=payload)
-            st.success("Vehicle updated")
-            st.session_state.edit_vehicle = None
+        with st.expander(f"✏️ Editing {v['vin']}", expanded=True):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                year = st.text_input("Year", v["year"])
+                make = st.text_input("Make", v["make"])
+                model = st.text_input("Model", v["model"])
+
+            with col2:
+                price = st.text_input("Price", v.get("price", ""))
+                miles = st.text_input("Miles", v.get("miles", ""))
+
+            if st.button("Save Changes"):
+                payload = {
+                    "year": year,
+                    "make": make,
+                    "model": model,
+                    "price": price or None,
+                    "miles": miles or None,
+                }
+                requests.put(f"{API_URL}/vehicles/{v['vin']}", json=payload)
+                st.success("Updated!")
+                st.session_state.edit_vehicle = None
+                st.rerun()
+
+    # -------------------------
+    # DELETE CONFIRM
+    # -------------------------
+    if "delete_vehicle" in st.session_state and st.session_state.delete_vehicle:
+        vin = st.session_state.delete_vehicle
+
+        st.warning(f"Delete vehicle {vin}?")
+
+        col1, col2 = st.columns(2)
+
+        if col1.button("Confirm"):
+            requests.delete(f"{API_URL}/vehicles/{vin}")
+            st.success("Deleted")
+            st.session_state.delete_vehicle = None
             st.rerun()
 
-    # -------------------------
-    # DELETE CONFIRMATION
-    # -------------------------
-    if st.session_state.delete_vehicle is not None:
-        vin = st.session_state.delete_vehicle
-        st.warning(f"Are you sure you want to delete vehicle {vin}?")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Confirm Delete"):
-                requests.delete(f"{API_URL}/vehicles/{vin}")
-                st.success("Vehicle deleted")
-                st.session_state.delete_vehicle = None
-                st.rerun()
-        with col2:
-            if st.button("Cancel"):
-                st.session_state.delete_vehicle = None
-                st.rerun()
+        if col2.button("Cancel"):
+            st.session_state.delete_vehicle = None
