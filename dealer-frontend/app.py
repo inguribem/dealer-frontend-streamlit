@@ -12,7 +12,7 @@ import os
 st.set_page_config(page_title="Dealer Dashboard", page_icon="🚗", layout="wide")
 
 # -------------------------
-# LOAD CSS
+# STYLE
 # -------------------------
 from ui.style import load_css
 load_css()
@@ -38,8 +38,9 @@ authenticator = stauth.Authenticate(
 
 authenticator.login(location="main")
 
+
 # -------------------------
-# SIDEBAR NAVIGATION
+# SIDEBAR
 # -------------------------
 def sidebar_navigation():
     with st.sidebar:
@@ -57,11 +58,13 @@ def sidebar_navigation():
             st.markdown("### 🔍 Inventory Filters")
 
             st.text_input("Search (Inventory)", key="inv_search")
+
             st.selectbox(
                 "Make",
                 ["All", "Toyota", "BMW", "Ford"],
                 key="inv_make"
             )
+
             st.selectbox(
                 "Year",
                 ["All", "2024", "2023", "2022"],
@@ -121,7 +124,7 @@ def sidebar_navigation():
 
 
 # -------------------------
-# MAIN APP
+# APP STATE
 # -------------------------
 if st.session_state.get("authentication_status"):
 
@@ -132,17 +135,31 @@ if st.session_state.get("authentication_status"):
     # LOAD SIDEBAR
     sidebar_navigation()
 
+    # -------------------------
+    # CLEAR INVENTORY FILTERS WHEN LEAVING PAGE
+    # -------------------------
+    current_page = st.session_state.get("page")
+
+    if current_page != "pages.vehicle.inventory":
+        for key in ["inv_search", "inv_make", "inv_year"]:
+            st.session_state.pop(key, None)
+
+    # -------------------------
     # LOAD PAGE
+    # -------------------------
     try:
         module = importlib.import_module(st.session_state.page)
         module.app()
+
     except ModuleNotFoundError:
-        st.error(f"Module {st.session_state.page} not found. Check structure.")
+        st.error(f"Module {st.session_state.page} not found. Check folder structure.")
+
     except AttributeError:
-        st.error(f"Module {st.session_state.page} does not have an app() function.")
+        st.error(f"Module {st.session_state.page} has no app() function.")
+
     except Exception as e:
         st.error("Unexpected error loading page")
         st.exception(e)
 
 else:
-    st.warning("Enter user and password")
+    st.warning("Ingrese usuario y contraseña")
