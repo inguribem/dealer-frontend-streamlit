@@ -6,6 +6,7 @@ import os
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 ROWS_PER_PAGE = 10
 
+##
 
 def app():
     st.set_page_config(layout="wide")
