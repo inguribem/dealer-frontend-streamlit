@@ -7,6 +7,9 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 ROWS_PER_PAGE = 10
 
 
+# -------------------------
+# SAFE AVG FUNCTION
+# -------------------------
 def safe_avg(df, column):
     if column not in df.columns:
         return 0
@@ -15,7 +18,6 @@ def safe_avg(df, column):
 
 
 def app():
-    st.set_page_config(layout="wide")
     st.title("🚗 Vehicle Inventory")
 
     # -------------------------
@@ -78,19 +80,19 @@ def app():
     df = df.sort_values(by=sort_col, ascending=(sort_order == "Asc"))
 
     # -------------------------
-    # PAGINATION
+    # PAGINATION (FIXED)
     # -------------------------
-    if "page" not in st.session_state:
-        st.session_state.page = 1
+    if "inventory_page" not in st.session_state:
+        st.session_state.inventory_page = 1
 
     total_pages = (len(df) - 1) // ROWS_PER_PAGE + 1
-    page = st.session_state.page
+    page = st.session_state.inventory_page
 
     start = (page - 1) * ROWS_PER_PAGE
     df_page = df.iloc[start:start + ROWS_PER_PAGE]
 
     # -------------------------
-    # INVENTORY LIST (CARD STYLE)
+    # INVENTORY LIST (CARD UI)
     # -------------------------
     st.subheader("Inventory")
 
@@ -98,7 +100,9 @@ def app():
         with st.container():
             col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
 
-            col1.markdown(f"**{row.get('year','')} {row.get('make','')} {row.get('model','')}**")
+            col1.markdown(
+                f"**{row.get('year','')} {row.get('make','')} {row.get('model','')}**"
+            )
             col2.write(f"${row.get('price','-')}")
             col3.write(f"{row.get('miles','-')} mi")
 
@@ -116,13 +120,13 @@ def app():
     col1, col2, col3 = st.columns(3)
 
     if col1.button("⬅️ Prev") and page > 1:
-        st.session_state.page -= 1
+        st.session_state.inventory_page -= 1
         st.rerun()
 
     col2.markdown(f"### Page {page} / {total_pages}")
 
     if col3.button("Next ➡️") and page < total_pages:
-        st.session_state.page += 1
+        st.session_state.inventory_page += 1
         st.rerun()
 
     # -------------------------
