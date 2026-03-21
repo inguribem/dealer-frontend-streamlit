@@ -45,28 +45,53 @@ def sidebar_navigation():
     with st.sidebar:
         st.markdown("## 🚗 Dealer Dashboard")
 
-        # USER INFO
         name = st.session_state.get("name", "User")
         st.markdown(f"👤 **{name}**")
 
         st.divider()
 
+        # -------------------------
+        # INVENTORY FILTERS (ONLY ON INVENTORY PAGE)
+        # -------------------------
+        if st.session_state.get("page") == "pages.vehicle.inventory":
+            st.markdown("### 🔍 Inventory Filters")
+
+            st.text_input("Search (Inventory)", key="inv_search")
+            st.selectbox(
+                "Make",
+                ["All", "Toyota", "BMW", "Ford"],
+                key="inv_make"
+            )
+            st.selectbox(
+                "Year",
+                ["All", "2024", "2023", "2022"],
+                key="inv_year"
+            )
+
+            st.divider()
+
+        # -------------------------
         # QUICK ACTIONS
+        # -------------------------
         st.markdown("### ⚡ Quick Actions")
+
         if st.button("➕ Add Vehicle", use_container_width=True):
             st.session_state.page = "pages.vehicle.add_vehicle"
 
         st.divider()
 
-        # INVENTORY
+        # -------------------------
+        # NAVIGATION
+        # -------------------------
         st.markdown("### 📋 Inventory")
+
         if st.button("View Inventory", use_container_width=True):
             st.session_state.page = "pages.vehicle.inventory"
 
         st.divider()
 
-        # AUCTIONS
         st.markdown("### 🏷 Auctions")
+
         if st.button("Auction Inventory", use_container_width=True):
             st.session_state.page = "pages.auction.auction_inventory"
 
@@ -75,8 +100,8 @@ def sidebar_navigation():
 
         st.divider()
 
-        # INSIGHTS
         st.markdown("### 📊 Insights")
+
         if st.button("Market Trends", use_container_width=True):
             st.session_state.page = "pages.market.market_search"
 
@@ -85,14 +110,13 @@ def sidebar_navigation():
 
         st.divider()
 
-        # TOOLS
         st.markdown("### 🧰 Tools")
+
         if st.button("Profit Estimator", use_container_width=True):
             st.session_state.page = "pages.dealer.profit_estimator"
 
         st.divider()
 
-        # LOGOUT
         authenticator.logout("🚪 Logout", "sidebar")
 
 
