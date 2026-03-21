@@ -4,25 +4,31 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 import importlib
-import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
+# -------------------------
+# PAGE CONFIG
+# -------------------------
 st.set_page_config(page_title="Dealer Dashboard", page_icon="🚗", layout="wide")
 
+# -------------------------
+# LOAD CSS
+# -------------------------
 from ui.style import load_css
 load_css()
 
-API_URL = st.secrets["API_URL"]
-
+# -------------------------
+# LOAD CONFIG
+# -------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 config_path = os.path.join(BASE_DIR, "config.yaml")
 
 with open(config_path) as file:
     config = yaml.load(file, Loader=SafeLoader)
 
+# -------------------------
+# AUTH
+# -------------------------
 authenticator = stauth.Authenticate(
     config["credentials"],
     config["cookie"]["name"],
@@ -32,49 +38,87 @@ authenticator = stauth.Authenticate(
 
 authenticator.login(location="main")
 
+# -------------------------
+# SIDEBAR NAVIGATION
+# -------------------------
+def sidebar_navigation():
+    with st.sidebar:
+        st.markdown("## 🚗 Dealer Dashboard")
+
+        # USER INFO
+        name = st.session_state.get("name", "User")
+        st.markdown(f"👤 **{name}**")
+
+        st.divider()
+
+        # QUICK ACTIONS
+        st.markdown("### ⚡ Quick Actions")
+        if st.button("➕ Add Vehicle", use_container_width=True):
+            st.session_state.page = "pages.vehicle.add_vehicle"
+
+        st.divider()
+
+        # INVENTORY
+        st.markdown("### 📋 Inventory")
+        if st.button("View Inventory", use_container_width=True):
+            st.session_state.page = "pages.vehicle.inventory"
+
+        st.divider()
+
+        # AUCTIONS
+        st.markdown("### 🏷 Auctions")
+        if st.button("Auction Inventory", use_container_width=True):
+            st.session_state.page = "pages.auction.auction_inventory"
+
+        if st.button("Auction Analytics", use_container_width=True):
+            st.session_state.page = "pages.auction.auction_analytics"
+
+        st.divider()
+
+        # INSIGHTS
+        st.markdown("### 📊 Insights")
+        if st.button("Market Trends", use_container_width=True):
+            st.session_state.page = "pages.market.market_search"
+
+        if st.button("Price Trends", use_container_width=True):
+            st.session_state.page = "pages.market.price_trends"
+
+        st.divider()
+
+        # TOOLS
+        st.markdown("### 🧰 Tools")
+        if st.button("Profit Estimator", use_container_width=True):
+            st.session_state.page = "pages.dealer.profit_estimator"
+
+        st.divider()
+
+        # LOGOUT
+        authenticator.logout("🚪 Logout", "sidebar")
+
+
+# -------------------------
+# MAIN APP
+# -------------------------
 if st.session_state.get("authentication_status"):
 
-    name = st.session_state["name"]
-    st.sidebar.title("🚗 Dealer Dashboard")
-    st.sidebar.success(f"Welcome {name}")
-    authenticator.logout("Logout", "sidebar")
+    # DEFAULT PAGE
+    if "page" not in st.session_state:
+        st.session_state.page = "pages.vehicle.inventory"
 
-    menu = {
-        "Dashboard": "pages.dashboard",
-        "Vehicle Intelligence": {
-            "VIN Lookup": "pages.vehicle.vin_lookup",
-            "Add Vehicle": "pages.vehicle.add_vehicle",
-            "Inventory": "pages.vehicle.inventory"
-        },
-        "Market Intelligence": {
-            "Market Search": "pages.market.market_search",
-            "Price Trends": "pages.market.price_trends"
-        },
-        "Auction Intelligence": {
-            "Auction Inventory": "pages.auction.auction_inventory",
-            "Auction Analytics": "pages.auction.auction_analytics"
-        },
-        "Dealer Tools": {
-            "Profit Estimator": "pages.dealer.profit_estimator"
-        }
-    }
+    # LOAD SIDEBAR
+    sidebar_navigation()
 
-    section = st.sidebar.selectbox("Module", list(menu.keys()))
-
-    if isinstance(menu[section], dict):
-        page = st.sidebar.radio("Tool", list(menu[section].keys()))
-        module_path = menu[section][page]
-    else:
-        module_path = menu[section]
-
+    # LOAD PAGE
     try:
-        module = importlib.import_module(module_path)
+        module = importlib.import_module(st.session_state.page)
         module.app()
     except ModuleNotFoundError:
-        st.error(f"Module {module_path} not found. Please check __init__.py")
+        st.error(f"Module {st.session_state.page} not found. Check structure.")
     except AttributeError:
-        st.error(f"Module {module_path} does not have an app() function.")
+        st.error(f"Module {st.session_state.page} does not have an app() function.")
+    except Exception as e:
+        st.error("Unexpected error loading page")
+        st.exception(e)
 
 else:
-    st.warning("Ingrese usuario y contraseña")
-
+    st.warning("Enter user and password")
