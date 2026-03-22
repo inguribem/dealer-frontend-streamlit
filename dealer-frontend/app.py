@@ -75,6 +75,13 @@ def sidebar_navigation():
 
         st.divider()
 
+        st.markdown("### 🛠 Service Management")
+
+        if st.button("Service Orders", use_container_width=True):
+            st.session_state.page = "pages.service.service_orders"
+        
+        st.divider()
+
         st.markdown("### 🏷 Auctions")
 
         if st.button("Auction Calendar", use_container_width=True):
