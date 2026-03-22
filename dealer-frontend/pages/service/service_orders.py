@@ -36,10 +36,8 @@ def app():
 
     if st.button("🆕 Create New Order"):
         try:
-            r = requests.post(
-                f"{API_URL}/service-orders",
-                json={"vehicle_id": selected_vehicle["id"]}
-            )
+            payload = {"vehicle_id": int(selected_vehicle["id"])}  # <-- convertir a int
+            r = requests.post(f"{API_URL}/service-orders", json=payload)
             if r.status_code == 200:
                 order_id = r.json().get("order_id")
                 st.session_state["current_order_id"] = order_id
@@ -85,10 +83,10 @@ def app():
             for item_name in selected_items:
                 item = df_catalog[df_catalog["display_name"] == item_name].iloc[0]
                 payload = {
-                    "order_id": order_id,
-                    "catalog_item_id": item["id"],
-                    "quantity": quantity_inputs[item_name],
-                    "unit_price": item.get("base_price", 0)
+                    "order_id": int(order_id),  # <-- asegurar int
+                    "catalog_item_id": int(item["id"]),
+                    "quantity": int(quantity_inputs[item_name]),
+                    "unit_price": float(item.get("base_price", 0))
                 }
                 try:
                     r = requests.post(f"{API_URL}/order-details", json=payload)
@@ -109,16 +107,17 @@ def app():
     try:
         vehicle_orders = requests.get(
             f"{API_URL}/service-orders",
-            params={"vehicle_id": selected_vehicle["id"]}
+            params={"vehicle_id": int(selected_vehicle["id"])}
         ).json()
     except Exception as e:
         st.error(f"Failed to fetch vehicle orders: {e}")
         return
 
-    if vehicle_orders:
+    # Validar que sea lista de dicts
+    if isinstance(vehicle_orders, list) and vehicle_orders:
         df_orders = pd.DataFrame(vehicle_orders)
         if not df_orders.empty:
-            # Mostrar con colores según status
+            # Colorear status
             def color_status(val):
                 if val == "pending":
                     color = "orange"
