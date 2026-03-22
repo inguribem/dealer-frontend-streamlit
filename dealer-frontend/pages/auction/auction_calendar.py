@@ -13,7 +13,7 @@ def app():
     # =========================
     # SEARCH
     # =========================
-    city = st.text_input("Enter city", "Miami")
+    city = st.text_input("Enter city", "Orlando")
 
     if st.button("Search Auctions"):
 
