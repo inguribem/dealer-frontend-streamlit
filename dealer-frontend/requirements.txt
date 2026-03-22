@@ -4,3 +4,4 @@ matplotlib>=3.7.0
 seaborn>=0.12.2
 psycopg2-binary>=2.9.6
 requests>=2.31.0
+streamlit-authenticator
