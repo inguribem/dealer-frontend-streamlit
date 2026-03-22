@@ -58,7 +58,7 @@ def sidebar_navigation():
         st.markdown("### 📊 Home")
 
         if st.button("Dashboard", use_container_width=True):
-            st.session_state.page = "pages.dashboard.dashboard"
+            st.session_state.page = "pages.dashboard"
 
         st.divider()
 
