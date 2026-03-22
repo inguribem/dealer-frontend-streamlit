@@ -32,6 +32,7 @@ with open(config_path) as file:
 authenticator = stauth.Authenticate(
     config["credentials"],
     config["cookie"]["name"],
+    config["cookie"]["customer"],
     config["cookie"]["key"],
     config["cookie"]["expiry_days"]
 )
