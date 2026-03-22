@@ -3,6 +3,7 @@ import requests
 
 API_URL = st.secrets["API_URL"]
 
+
 def app():
 
     st.title("🚗 Add Vehicle")
@@ -12,7 +13,6 @@ def app():
     # -------------------------
     # SESSION STATE
     # -------------------------
-
     if "vin_raw" not in st.session_state:
         st.session_state["vin_raw"] = {}
 
@@ -20,10 +20,9 @@ def app():
         st.session_state["vin_summary"] = {}
 
     # -------------------------
-    # HELPER: SAVE VEHICLE
+    # SAVE VEHICLE
     # -------------------------
-
-    def save_vehicle(year, make, model, trim, price, miles):
+    def save_vehicle(year, make, model, trim, price_purchase, miles):
 
         payload = {
             "vin": vin,
@@ -31,7 +30,7 @@ def app():
             "make": make,
             "model": model,
             "trim": trim,
-            "price": float(price) if price else None,
+            "price_purchase": float(price_purchase) if price_purchase else None,
             "miles": int(miles) if miles else None,
             "dealer_name": "",
             "city": "",
@@ -45,10 +44,9 @@ def app():
         else:
             st.error(f"Error: {r.text}")
 
-    # -------------------------
-    # TABS
-    # -------------------------
-
+    # =========================
+    # TAB 1: VIN DECODE
+    # =========================
     tab1, tab2, tab3, tab4 = st.tabs([
         "🔍 VIN Decode",
         "📊 Vehicle Data",
@@ -56,16 +54,11 @@ def app():
         "🧾 Raw Data"
     ])
 
-    # =========================
-    # TAB 1: VIN DECODE
-    # =========================
-
     with tab1:
 
         if st.button("Decode VIN") and vin:
 
             url = f"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{vin}?format=json"
-
             r = requests.get(url)
             data = r.json()
 
@@ -77,7 +70,7 @@ def app():
 
             st.session_state["vin_raw"] = resultados
 
-            resumen = {
+            st.session_state["vin_summary"] = {
                 "year": resultados.get("Model Year"),
                 "make": resultados.get("Make"),
                 "model": resultados.get("Model"),
@@ -93,12 +86,9 @@ def app():
                 "plant_company": resultados.get("Plant Company Name"),
             }
 
-            st.session_state["vin_summary"] = resumen
-
         s = st.session_state.get("vin_summary", {})
 
         if s:
-
             col1, col2 = st.columns(2)
 
             with col1:
@@ -111,7 +101,6 @@ def app():
                 st.metric("Fuel", s.get("fuel"))
                 st.metric("Transmission", s.get("transmission"))
 
-        # Save button aquí también
         if st.button("💾 Save Vehicle (Quick)"):
 
             save_vehicle(
@@ -126,7 +115,6 @@ def app():
     # =========================
     # TAB 2: VEHICLE DATA
     # =========================
-
     with tab2:
 
         s = st.session_state.get("vin_summary", {})
@@ -136,17 +124,16 @@ def app():
         model = st.text_input("Model", s.get("model", ""))
         trim = st.text_input("Trim", s.get("trim", ""))
 
-        price = st.text_input("Price")
+        price_purchase = st.text_input("Purchase Price")
         miles = st.text_input("Miles")
 
         if st.button("💾 Save Vehicle"):
 
-            save_vehicle(year, make, model, trim, price, miles)
+            save_vehicle(year, make, model, trim, price_purchase, miles)
 
     # =========================
     # TAB 3: MANUFACTURER
     # =========================
-
     with tab3:
 
         s = st.session_state.get("vin_summary", {})
@@ -181,11 +168,9 @@ def app():
     # =========================
     # TAB 4: RAW DATA
     # =========================
-
     with tab4:
 
         st.subheader("Raw VIN Data")
-
         st.json(st.session_state.get("vin_raw", {}))
 
         s = st.session_state.get("vin_summary", {})
@@ -200,4 +185,3 @@ def app():
                 None,
                 None
             )
-

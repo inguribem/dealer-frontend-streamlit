@@ -11,9 +11,9 @@ def app():
 
     st.title("🚗 Vehicle Inventory")
 
-    # -------------------------
-    # SESSION STATE INIT
-    # -------------------------
+    # =========================================================
+    # SESSION STATE
+    # =========================================================
     if "page" not in st.session_state:
         st.session_state.page = 1
 
@@ -24,9 +24,9 @@ def app():
         st.session_state.sort_column = "year"
         st.session_state.sort_ascending = False
 
-    # -------------------------
-    # LOAD DATA FOR FILTER OPTIONS
-    # -------------------------
+    # =========================================================
+    # LOAD DATA (FOR FILTER OPTIONS)
+    # =========================================================
     try:
         all_data = requests.get(f"{API_URL}/vehicles/inventory").json()
         df_all = pd.DataFrame(all_data)
@@ -39,9 +39,9 @@ def app():
         return
 
     # =========================================================
-    # 🔥 FILTERS (NOW INSIDE PAGE - TOP SECTION)
+    # FILTERS UI
     # =========================================================
-    st.subheader("Filters")
+    st.subheader("🔎 Filters")
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -95,7 +95,7 @@ def app():
     st.divider()
 
     # =========================================================
-    # BUILD API PARAMS
+    # API PARAMS
     # =========================================================
     params = {}
     filters = st.session_state.filters
@@ -109,8 +109,11 @@ def app():
     if filters.get("year") and filters["year"] != "All":
         params["year"] = int(filters["year"])
 
+    if filters.get("status") and filters["status"] != "All":
+        params["status"] = filters["status"]
+
     # =========================================================
-    # FETCH FILTERED DATA
+    # FETCH DATA
     # =========================================================
     try:
         r = requests.get(f"{API_URL}/vehicles/inventory", params=params)
@@ -127,12 +130,21 @@ def app():
     # =========================================================
     # SORTING
     # =========================================================
-    cols = ["vin", "year", "make", "model", "price", "miles"]
+    cols = [
+        "vin",
+        "year",
+        "make",
+        "model",
+        "price_purchase",
+        "miles",
+        "status"
+    ]
 
     col_sort = st.selectbox(
         "Sort by",
         cols,
         index=cols.index(st.session_state.sort_column)
+        if st.session_state.sort_column in cols else 0
     )
 
     asc_sort = st.radio(
@@ -150,7 +162,7 @@ def app():
     )
 
     # =========================================================
-    # PAGINATION (FIXED TYPE ISSUE)
+    # PAGINATION
     # =========================================================
     total_pages = (len(df) - 1) // ROWS_PER_PAGE + 1
 
@@ -175,9 +187,39 @@ def app():
             st.rerun()
 
     # =========================================================
-    # TABLE
+    # TABLE (FINAL UI)
     # =========================================================
-    df_table = df_page[["vin", "year", "make", "model", "price", "miles"]].copy()
-    df_table.columns = ["VIN", "Year", "Make", "Model", "Price", "Miles"]
+    df_table = df_page[
+        [
+            "vin",
+            "year",
+            "make",
+            "model",
+            "price_purchase",
+            "miles",
+            "status"
+        ]
+    ].copy()
 
-    st.dataframe(df_table, use_container_width=True)
+    df_table.columns = [
+        "VIN",
+        "Year",
+        "Make",
+        "Model",
+        "Purchase Price",
+        "Miles",
+        "Status"
+    ]
+
+    def format_status(status):
+        return str(status).capitalize() if status else "Unknown"
+
+    df_table["Status"] = df_table["Status"].apply(format_status)
+
+    st.subheader("📋 Inventory")
+
+    st.dataframe(
+        df_table,
+        use_container_width=True,
+        hide_index=True
+    )

@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
-import pandas as pd
 
 API_URL = st.secrets["API_URL"]
+
 
 def app():
 
@@ -17,32 +17,40 @@ def app():
 
     st.subheader("Inventory")
 
+    # =========================================================
     # HEADER
-    header = st.columns([3,1,1,2,2,2,2])
+    # =========================================================
+    header = st.columns([3, 1, 1, 2, 2, 2, 2, 2])
 
     header[0].markdown("**VIN**")
     header[1].markdown("**Year**")
     header[2].markdown("**Make**")
     header[3].markdown("**Model**")
-    header[4].markdown("**Price**")
+    header[4].markdown("**Purchase Price**")
     header[5].markdown("**Miles**")
-    header[6].markdown("**Actions**")
+    header[6].markdown("**Status**")
+    header[7].markdown("**Actions**")
 
     st.divider()
 
+    # =========================================================
     # ROWS
+    # =========================================================
     for v in vehicles:
 
-        col1, col2, col3, col4, col5, col6, col7 = st.columns([3,1,1,2,2,2,2])
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(
+            [3, 1, 1, 2, 2, 2, 2, 2]
+        )
 
-        col1.write(v["vin"])
-        col2.write(v["year"])
-        col3.write(v["make"])
-        col4.write(v["model"])
-        col5.write(v["price"])
-        col6.write(v["miles"])
+        col1.write(v.get("vin"))
+        col2.write(v.get("year"))
+        col3.write(v.get("make"))
+        col4.write(v.get("model"))
+        col5.write(v.get("price_purchase"))
+        col6.write(v.get("miles"))
+        col7.write(v.get("status", "Unknown"))
 
-        a1, a2 = col7.columns(2)
+        a1, a2 = col8.columns(2)
 
         # EDIT
         if a1.button("✏️", key=f"edit_{v['vin']}", help="Edit"):
@@ -52,10 +60,9 @@ def app():
         if a2.button("🗑", key=f"delete_{v['vin']}", help="Delete"):
             st.session_state["delete_vehicle"] = v["vin"]
 
-    # -------------------------
+    # =========================================================
     # DELETE CONFIRMATION
-    # -------------------------
-
+    # =========================================================
     if "delete_vehicle" in st.session_state:
 
         vin = st.session_state["delete_vehicle"]
@@ -76,10 +83,9 @@ def app():
                 del st.session_state["delete_vehicle"]
                 st.rerun()
 
-    # -------------------------
+    # =========================================================
     # EDIT FORM
-    # -------------------------
-
+    # =========================================================
     if "edit_vehicle" in st.session_state:
 
         v = st.session_state["edit_vehicle"]
@@ -90,13 +96,14 @@ def app():
         col1, col2 = st.columns(2)
 
         with col1:
-            year = st.text_input("Year", v["year"])
-            make = st.text_input("Make", v["make"])
-            model = st.text_input("Model", v["model"])
+            year = st.text_input("Year", v.get("year", ""))
+            make = st.text_input("Make", v.get("make", ""))
+            model = st.text_input("Model", v.get("model", ""))
 
         with col2:
-            price = st.text_input("Price", v["price"])
-            miles = st.text_input("Miles", v["miles"])
+            price = st.text_input("Purchase Price", v.get("price_purchase", ""))
+            miles = st.text_input("Miles", v.get("miles", ""))
+            status = st.text_input("Status", v.get("status", ""))
 
         if st.button("Update"):
 
@@ -105,9 +112,10 @@ def app():
                 "year": int(year) if year else None,
                 "make": make,
                 "model": model,
-                "trim": v.get("trim",""),
-                "price": float(price) if price else None,
+                "trim": v.get("trim", ""),
+                "price_purchase": float(price) if price else None,
                 "miles": int(miles) if miles else None,
+                "status": status,
                 "dealer_name": "",
                 "city": "",
                 "state": ""
