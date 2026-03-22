@@ -25,7 +25,6 @@ def app():
     st.subheader("Select Vehicle")
     selected_vin = st.selectbox("Vehicle VIN", df_vehicles["vin"].tolist(), key="vehicle_select")
     selected_vehicle = df_vehicles[df_vehicles["vin"] == selected_vin].iloc[0]
-
     st.markdown(f"**{selected_vehicle['year']} {selected_vehicle['make']} {selected_vehicle['model']}**")
 
     # -------------------------
@@ -63,7 +62,6 @@ def app():
         order_id = st.session_state["current_order_id"]
         st.subheader(f"Add Items to Order #{order_id}")
 
-        # Traer catálogo
         try:
             catalog = requests.get(f"{API_URL}/catalog-items").json()
             df_catalog = pd.DataFrame(catalog)
@@ -76,11 +74,19 @@ def app():
             return
 
         df_catalog["display_name"] = df_catalog["name"] + " (" + df_catalog["type"] + ")"
-        selected_items = st.multiselect("Select Items", df_catalog["display_name"].tolist(), key="catalog_select")
+        selected_items = st.multiselect(
+            "Select Items",
+            df_catalog["display_name"].tolist(),
+            key="catalog_select"
+        )
 
         quantity_inputs = {}
         for item_name in selected_items:
-            quantity_inputs[item_name] = st.number_input(f"Quantity for {item_name}", min_value=1, value=1, step=1, key=f"qty_{item_name}")
+            quantity_inputs[item_name] = st.number_input(
+                f"Quantity for {item_name}",
+                min_value=1, value=1, step=1,
+                key=f"qty_{item_name}"
+            )
 
         if st.button("➕ Add Selected Items"):
             for item_name in selected_items:
@@ -102,7 +108,11 @@ def app():
     # -------------------------
     st.subheader("Vehicle Orders History")
     try:
-        vehicle_orders = requests.get(f"{API_URL}/service-orders", params={"vehicle_id": int(selected_vehicle["id"])}).json()
+        vehicle_orders = requests.get(
+            f"{API_URL}/service-orders",
+            params={"vehicle_id": int(selected_vehicle["id"])}
+        ).json()
+
         if vehicle_orders:
             df_orders = pd.DataFrame(vehicle_orders)
             if not df_orders.empty:
@@ -113,3 +123,76 @@ def app():
             st.info("No orders for this vehicle yet.")
     except Exception as e:
         st.error(f"Failed to fetch orders: {e}")
+
+    # -------------------------
+    # ORDER DETAILS PER ORDER WITH EDIT & DELETE
+    # -------------------------
+    st.subheader("Order Details by Order")
+    if vehicle_orders:
+        for order in vehicle_orders:
+            order_id = order.get("id")
+            if not order_id:
+                continue
+            with st.expander(f"Order #{order_id} - Status: {order.get('status')}"):
+                try:
+                    details = requests.get(
+                        f"{API_URL}/order-details",
+                        params={"order_id": int(order_id)}
+                    ).json()
+                    if details:
+                        df_details = pd.DataFrame(details)
+                        if not df_details.empty:
+                            df_details_display = df_details[["catalog_item_name", "type", "quantity", "unit_price"]].copy()
+                            df_details_display.columns = ["Item", "Type", "Quantity", "Unit Price"]
+
+                            # Editable quantities
+                            edited_quantities = {}
+                            for i, row in df_details.iterrows():
+                                q_key = f"qty_{order_id}_{row['catalog_item_id']}"
+                                edited_quantities[row["catalog_item_id"]] = st.number_input(
+                                    f"{row['catalog_item_name']} (Order #{order_id})",
+                                    min_value=1,
+                                    value=int(row["quantity"]),
+                                    step=1,
+                                    key=q_key
+                                )
+                                # Delete checkbox
+                                del_key = f"del_{order_id}_{row['catalog_item_id']}"
+                                df_details.loc[i, "delete"] = st.checkbox(
+                                    "Delete",
+                                    value=False,
+                                    key=del_key
+                                )
+
+                            # Update quantities
+                            if st.button(f"💾 Update Order #{order_id}"):
+                                for item_id, new_qty in edited_quantities.items():
+                                    payload = {"quantity": int(new_qty)}
+                                    r = requests.put(
+                                        f"{API_URL}/order-details/{order_id}/{item_id}",
+                                        json=payload
+                                    )
+                                    if r.status_code != 200:
+                                        st.error(f"Failed to update item {item_id}: {r.text}")
+                                st.success("Order updated")
+                                st.experimental_rerun()
+
+                            # Delete items
+                            if st.button(f"🗑 Delete Selected Items from Order #{order_id}"):
+                                for i, row in df_details.iterrows():
+                                    if row.get("delete"):
+                                        item_id = int(row["catalog_item_id"])
+                                        r = requests.delete(
+                                            f"{API_URL}/order-details/{order_id}/{item_id}"
+                                        )
+                                        if r.status_code != 200:
+                                            st.error(f"Failed to delete item {item_id}: {r.text}")
+                                st.success("Selected items deleted")
+                                st.experimental_rerun()
+
+                        else:
+                            st.info("No items in this order yet.")
+                    else:
+                        st.info("No items in this order yet.")
+                except Exception as e:
+                    st.error(f"Failed to fetch order details for order #{order_id}: {e}")
