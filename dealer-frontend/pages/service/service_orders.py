@@ -14,8 +14,8 @@ def app():
     try:
         vehicles = requests.get(f"{API_URL}/vehicles/inventory").json()
         df_vehicles = pd.DataFrame(vehicles)
-    except:
-        st.error("Failed to load vehicles from backend")
+    except Exception as e:
+        st.error(f"Failed to load vehicles from backend: {e}")
         return
 
     if df_vehicles.empty:
@@ -32,31 +32,29 @@ def app():
     # -------------------------
     if st.button("🆕 Create New Order"):
         try:
-            payload = {"vehicle_id": selected_vehicle["id"]}
+            payload = {"vehicle_id": int(selected_vehicle["id"])}
             r = requests.post(f"{API_URL}/service-orders", json=payload)
             if r.status_code == 200:
-                order_id = r.json().get("order_id")
+                order_id = int(r.json().get("order_id"))
                 st.success(f"Order created! Order ID: {order_id}")
                 st.session_state["current_order_id"] = order_id
             else:
                 st.error(f"Error creating order: {r.text}")
-                return
         except Exception as e:
             st.error(f"Error connecting to backend: {e}")
-            return
 
     # -------------------------
     # ADD ITEMS TO ORDER
     # -------------------------
     if "current_order_id" in st.session_state:
-        order_id = st.session_state["current_order_id"]
+        order_id = int(st.session_state["current_order_id"])
         st.subheader(f"Add Items to Order #{order_id}")
 
         try:
             catalog = requests.get(f"{API_URL}/catalog-items").json()
             df_catalog = pd.DataFrame(catalog)
-        except:
-            st.error("Failed to load catalog items")
+        except Exception as e:
+            st.error(f"Failed to load catalog items: {e}")
             return
 
         if df_catalog.empty:
@@ -74,28 +72,39 @@ def app():
             for item_name in selected_items:
                 item = df_catalog[df_catalog["display_name"] == item_name].iloc[0]
                 payload = {
-                    "order_id": order_id,
-                    "catalog_item_id": item["id"],
-                    "quantity": quantity_inputs[item_name],
-                    "unit_price": item.get("base_price", 0)
+                    "order_id": int(order_id),
+                    "catalog_item_id": int(item["id"]),
+                    "quantity": int(quantity_inputs[item_name]),
+                    "unit_price": float(item.get("base_price", 0))
                 }
-                r = requests.post(f"{API_URL}/order-details", json=payload)
-                if r.status_code != 200:
-                    st.error(f"Failed to add {item_name}: {r.text}")
-                else:
-                    st.success(f"Added {item_name} x {quantity_inputs[item_name]}")
+                try:
+                    r = requests.post(f"{API_URL}/order-details", json=payload)
+                    if r.status_code != 200:
+                        st.error(f"Failed to add {item_name}: {r.text}")
+                    else:
+                        st.success(f"Added {item_name} x {quantity_inputs[item_name]}")
+                except Exception as e:
+                    st.error(f"Error adding {item_name}: {e}")
 
     # -------------------------
     # VEHICLE ORDER HISTORY
     # -------------------------
     st.subheader("Vehicle Orders History")
     try:
-        vehicle_orders = requests.get(f"{API_URL}/service-orders", params={"vehicle_id": selected_vehicle["id"]}).json()
-        if vehicle_orders:
-            df_orders = pd.DataFrame(vehicle_orders)
-            st.dataframe(df_orders[["id", "status", "total_cost", "created_at"]])
+        vehicle_orders_resp = requests.get(f"{API_URL}/service-orders", params={"vehicle_id": int(selected_vehicle["id"])})
+        if vehicle_orders_resp.status_code == 200:
+            vehicle_orders = vehicle_orders_resp.json()
+            if vehicle_orders:
+                df_orders = pd.DataFrame(vehicle_orders)
+                if not df_orders.empty:
+                    st.dataframe(df_orders[["id", "status", "total_cost", "created_at"]])
+                else:
+                    st.info("No orders for this vehicle yet.")
+            else:
+                st.info("No orders for this vehicle yet.")
         else:
-            st.info("No orders for this vehicle yet.")
+            st.error(f"Failed to fetch orders: {vehicle_orders_resp.text}")
     except Exception as e:
-        st.error(f"Failed to fetch orders: {e}")
+        st.error(f"Error fetching orders: {e}")
+
 
