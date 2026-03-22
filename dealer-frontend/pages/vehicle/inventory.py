@@ -263,12 +263,24 @@ def app():
             price = st.text_input("Price", v.get("price_purchase", ""))
 
         if st.button("Update Vehicle"):
+            def safe_int(value):
+                try:
+                    return int(float(value))
+                except:
+                    return None
+
+
+            def safe_float(value):
+                try:
+                    return float(value)
+                except:
+                    return None 
 
             payload = {
-                "year": int(year) if year else None,
+                "year": safe_int(year),
                 "make": make,
                 "model": model,
-                "price_purchase": float(price) if price else None,
+                "price_purchase": safe_float(price),
                 "status": status
             }
 
