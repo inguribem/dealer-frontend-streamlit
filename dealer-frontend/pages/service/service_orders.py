@@ -31,10 +31,46 @@ def app():
         # CREATE ORDER
         # -------------------------
         if st.button("Create Service Order"):
-            r = requests.post(f"{API_URL}/service-orders", params={"vehicle_id": v["id"]})
-            order_id = r.json()["order_id"]
+
+            vehicle_id = v.get("id")
+
+            # Validación básica
+            if not vehicle_id:
+                st.error("Vehicle ID not found. Check backend response.")
+                st.stop()
+
+            # Request al backend
+            r = requests.post(
+                f"{API_URL}/service-orders",
+                params={"vehicle_id": vehicle_id}
+            )
+
+            # Debug de respuesta
+            if r.status_code != 200:
+                st.error(f"Backend error: {r.status_code}")
+                st.text(r.text)
+                st.stop()
+
+            # Validar JSON
+            try:
+                data = r.json()
+            except:
+                st.error("Response is not valid JSON")
+                st.text(r.text)
+                st.stop()
+
+            # Validar contenido
+            order_id = data.get("order_id")
+
+            if not order_id:
+                st.error(f"Unexpected response: {data}")
+                st.stop()
+
+            # Guardar en session
             st.session_state.order_id = order_id
+
             st.success(f"Order {order_id} created")
+
 
     # -------------------------
     # ADD ITEMS
