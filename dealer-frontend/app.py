@@ -47,8 +47,10 @@ def sidebar_navigation():
     with st.sidebar:
         st.markdown("## 🚗 Dealer Dashboard")
 
+        customer = st.session_state.get("customer", "Customer")
         name = st.session_state.get("name", "User")
         st.markdown(f"👤 **{name}**")
+        st.markdown(f"🏢 **{customer}**")
 
         st.divider()
 
