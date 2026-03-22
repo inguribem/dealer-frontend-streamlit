@@ -25,7 +25,7 @@ def app():
         st.session_state.sort_ascending = False
 
     # =========================================================
-    # LOAD DATA (FOR FILTER OPTIONS)
+    # LOAD DATA (for filters)
     # =========================================================
     try:
         all_data = requests.get(f"{API_URL}/vehicles/inventory").json()
@@ -39,17 +39,14 @@ def app():
         return
 
     # =========================================================
-    # FILTERS UI
+    # FILTERS
     # =========================================================
     st.subheader("🔎 Filters")
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        search = st.text_input(
-            "Search",
-            value=st.session_state.filters.get("search", "")
-        )
+        search = st.text_input("Search", value=st.session_state.filters.get("search", ""))
 
     with col2:
         makes = sorted(df_all["make"].dropna().unique())
@@ -75,9 +72,6 @@ def app():
         apply_filters = st.button("Apply Filters")
         clear_filters = st.button("Clear")
 
-    # -------------------------
-    # APPLY / CLEAR FILTERS
-    # -------------------------
     if apply_filters:
         st.session_state.filters = {
             "search": search,
@@ -109,9 +103,6 @@ def app():
     if filters.get("year") and filters["year"] != "All":
         params["year"] = int(filters["year"])
 
-    if filters.get("status") and filters["status"] != "All":
-        params["status"] = filters["status"]
-
     # =========================================================
     # FETCH DATA
     # =========================================================
@@ -130,15 +121,7 @@ def app():
     # =========================================================
     # SORTING
     # =========================================================
-    cols = [
-        "vin",
-        "year",
-        "make",
-        "model",
-        "price_purchase",
-        "miles",
-        "status"
-    ]
+    cols = ["vin", "year", "make", "model", "price_purchase", "status"]
 
     col_sort = st.selectbox(
         "Sort by",
@@ -187,39 +170,119 @@ def app():
             st.rerun()
 
     # =========================================================
-    # TABLE (FINAL UI)
+    # TABLE HEADER
     # =========================================================
-    df_table = df_page[
-        [
-            "vin",
-            "year",
-            "make",
-            "model",
-            "price_purchase",
-            "miles",
-            "status"
-        ]
-    ].copy()
-
-    df_table.columns = [
-        "VIN",
-        "Year",
-        "Make",
-        "Model",
-        "Purchase Price",
-        "Miles",
-        "Status"
-    ]
-
-    def format_status(status):
-        return str(status).capitalize() if status else "Unknown"
-
-    df_table["Status"] = df_table["Status"].apply(format_status)
-
     st.subheader("📋 Inventory")
 
-    st.dataframe(
-        df_table,
-        use_container_width=True,
-        hide_index=True
-    )
+    header = st.columns([2, 2, 2, 1, 2, 2, 1, 1])
+
+    header[0].markdown("**VIN**")
+    header[1].markdown("**Make**")
+    header[2].markdown("**Model**")
+    header[3].markdown("**Year**")
+    header[4].markdown("**Status**")
+    header[5].markdown("**Price**")
+    header[6].markdown("**Edit**")
+    header[7].markdown("**Delete**")
+
+    st.divider()
+
+    # =========================================================
+    # ROWS
+    # =========================================================
+    for _, v in df_page.iterrows():
+
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([2, 2, 2, 1, 2, 2, 1, 1])
+
+        col1.write(v.get("vin", ""))
+        col2.write(v.get("make", ""))
+        col3.write(v.get("model", ""))
+        col4.write(v.get("year", ""))
+        col5.write(str(v.get("status", "new")).capitalize())
+
+        price = v.get("price_purchase", 0)
+        col6.write(f"${price:,.0f}" if price else "$0")
+
+        # EDIT
+        if col7.button("✏️", key=f"edit_{v['vin']}"):
+            st.session_state["edit_vehicle"] = v.to_dict()
+
+        # DELETE
+        if col8.button("🗑", key=f"delete_{v['vin']}"):
+            st.session_state["delete_vehicle"] = v["vin"]
+
+    # =========================================================
+    # DELETE CONFIRMATION
+    # =========================================================
+    if "delete_vehicle" in st.session_state:
+
+        vin = st.session_state["delete_vehicle"]
+
+        st.warning(f"Delete vehicle {vin}?")
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            if st.button("Confirm Delete"):
+                requests.delete(f"{API_URL}/vehicles/{vin}")
+                del st.session_state["delete_vehicle"]
+                st.success("Deleted")
+                st.rerun()
+
+        with c2:
+            if st.button("Cancel"):
+                del st.session_state["delete_vehicle"]
+                st.rerun()
+
+    # =========================================================
+    # EDIT FORM (NOW INCLUDES STATUS)
+    # =========================================================
+    if "edit_vehicle" in st.session_state:
+
+        v = st.session_state["edit_vehicle"]
+
+        st.divider()
+        st.subheader(f"Edit Vehicle: {v['vin']}")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            year = st.text_input("Year", v.get("year", ""))
+            make = st.text_input("Make", v.get("make", ""))
+            model = st.text_input("Model", v.get("model", ""))
+
+        with col2:
+            status = st.selectbox(
+                "Status",
+                ["new", "used", "sold", "pending"],
+                index=["new", "used", "sold", "pending"].index(
+                    v.get("status", "new") if v.get("status") in ["new", "used", "sold", "pending"] else "new"
+                )
+            )
+            price = st.text_input("Price", v.get("price_purchase", ""))
+
+        if st.button("Update Vehicle"):
+
+            payload = {
+                "vin": v["vin"],
+                "year": int(year) if year else None,
+                "make": make,
+                "model": model,
+                "trim": v.get("trim", ""),
+                "price_purchase": float(price) if price else None,
+                "miles": v.get("miles"),
+                "dealer_name": v.get("dealer_name", ""),
+                "city": v.get("city", ""),
+                "state": v.get("state", ""),
+                "status": status
+            }
+
+            requests.put(
+                f"{API_URL}/vehicles/{v['vin']}",
+                json=payload
+            )
+
+            del st.session_state["edit_vehicle"]
+
+            st.success("Updated successfully")
+            st.rerun()
