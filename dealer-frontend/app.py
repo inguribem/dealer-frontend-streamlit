@@ -77,11 +77,14 @@ def sidebar_navigation():
 
         st.markdown("### 🏷 Auctions")
 
+        if st.button("Auction Calendar", use_container_width=True):
+            st.session_state.page = "pages.auction.auction_calendar"
+
         if st.button("Auction Inventory", use_container_width=True):
             st.session_state.page = "pages.auction.auction_inventory"
 
-        if st.button("Auction Analytics", use_container_width=True):
-            st.session_state.page = "pages.auction.auction_analytics"
+#        if st.button("Auction Analytics", use_container_width=True):
+#            st.session_state.page = "pages.auction.auction_analytics"
 
         st.divider()
 
