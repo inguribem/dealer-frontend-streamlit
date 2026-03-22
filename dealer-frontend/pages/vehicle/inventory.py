@@ -8,7 +8,6 @@ ROWS_PER_PAGE = 10
 
 STATUS_OPTIONS = ["new", "diagnostic", "repair", "ready", "sold"]
 
-
 def app():
 
     st.title("🚗 Vehicle Inventory")
