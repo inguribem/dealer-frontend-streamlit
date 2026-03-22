@@ -102,7 +102,8 @@ if st.session_state.get("authentication_status"):
 
     # DEFAULT PAGE
     if "page" not in st.session_state:
-        st.session_state.page = "pages.vehicle.inventory"
+        # st.session_state.page = "pages.vehicle.inventory"
+        st.session_state.page = "pages.dashboard"
 
     # RENDER SIDEBAR
     sidebar_navigation()
