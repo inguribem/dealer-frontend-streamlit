@@ -6,13 +6,15 @@ import os
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 ROWS_PER_PAGE = 10
 
+STATUS_OPTIONS = ["new", "diagnostic", "repair", "ready", "sold"]
+
 
 def app():
 
     st.title("🚗 Vehicle Inventory")
 
     # =========================
-    # SESSION STATE (FIXED)
+    # SESSION STATE
     # =========================
     if "inventory_page" not in st.session_state:
         st.session_state.inventory_page = 1
@@ -46,7 +48,10 @@ def app():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        search = st.text_input("Search", value=st.session_state.filters.get("search", ""))
+        search = st.text_input(
+            "Search",
+            value=st.session_state.filters.get("search", "")
+        )
 
     with col2:
         makes = sorted(df_all["make"].dropna().unique())
@@ -69,18 +74,35 @@ def app():
         )
 
     with col4:
+        statuses = ["All"] + STATUS_OPTIONS
+        selected_status = st.selectbox(
+            "Status",
+            statuses,
+            index=statuses.index(
+                st.session_state.filters.get("status", "All")
+            )
+        )
+
+    col_apply, col_clear = st.columns(2)
+
+    with col_apply:
         apply_filters = st.button("Apply Filters")
+
+    with col_clear:
         clear_filters = st.button("Clear")
 
+    # APPLY
     if apply_filters:
         st.session_state.filters = {
             "search": search,
             "make": selected_make,
-            "year": selected_year
+            "year": selected_year,
+            "status": selected_status
         }
         st.session_state.inventory_page = 1
         st.rerun()
 
+    # CLEAR
     if clear_filters:
         st.session_state.filters = {}
         st.session_state.inventory_page = 1
@@ -101,7 +123,10 @@ def app():
         params["make"] = filters["make"]
 
     if filters.get("year") and filters["year"] != "All":
-        params["year"] = int(filters["year"])
+        params["year"] = int(float(filters["year"]))
+
+    if filters.get("status") and filters["status"] != "All":
+        params["status"] = filters["status"]
 
     # =========================
     # FETCH DATA
@@ -144,7 +169,7 @@ def app():
     )
 
     # =========================
-    # PAGINATION (FIXED)
+    # PAGINATION
     # =========================
     total_pages = max(1, (len(df) - 1) // ROWS_PER_PAGE + 1)
 
@@ -212,7 +237,7 @@ def app():
             st.session_state["delete_vehicle"] = v["vin"]
 
     # =========================
-    # DELETE CONFIRMATION
+    # DELETE
     # =========================
     if "delete_vehicle" in st.session_state:
 
@@ -235,7 +260,7 @@ def app():
                 st.rerun()
 
     # =========================
-    # EDIT FORM
+    # EDIT
     # =========================
     if "edit_vehicle" in st.session_state:
 
@@ -254,27 +279,29 @@ def app():
         with col2:
             status = st.selectbox(
                 "Status",
-                ["new", "used", "sold", "pending"],
-                index=["new", "used", "sold", "pending"].index(
-                    v.get("status", "new") if v.get("status") in ["new", "used", "sold", "pending"] else "new"
+                STATUS_OPTIONS,
+                index=STATUS_OPTIONS.index(
+                    v.get("status", "new")
+                    if v.get("status") in STATUS_OPTIONS else "new"
                 )
             )
 
             price = st.text_input("Price", v.get("price_purchase", ""))
 
+        # SAFE CAST
+        def safe_int(val):
+            try:
+                return int(float(val))
+            except:
+                return None
+
+        def safe_float(val):
+            try:
+                return float(val)
+            except:
+                return None
+
         if st.button("Update Vehicle"):
-            def safe_int(value):
-                try:
-                    return int(float(value))
-                except:
-                    return None
-
-
-            def safe_float(value):
-                try:
-                    return float(value)
-                except:
-                    return None 
 
             payload = {
                 "year": safe_int(year),
