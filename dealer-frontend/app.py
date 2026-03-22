@@ -53,6 +53,16 @@ def sidebar_navigation():
         st.divider()
 
         # -------------------------
+        # HOME / DASHBOARD (NEW FIRST SECTION)
+        # -------------------------
+        st.markdown("### 📊 Home")
+
+        if st.button("Dashboard", use_container_width=True):
+            st.session_state.page = "pages.dashboard.dashboard"
+
+        st.divider()
+
+        # -------------------------
         # NAVIGATION
         # -------------------------
         st.markdown("### 📋 Inventory")
