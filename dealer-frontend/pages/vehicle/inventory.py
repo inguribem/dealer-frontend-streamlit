@@ -8,6 +8,7 @@ ROWS_PER_PAGE = 10
 
 STATUS_OPTIONS = ["new", "diagnostic", "repair", "ready", "sold"]
 
+
 def app():
 
     st.title("🚗 Vehicle Inventory")
@@ -40,6 +41,11 @@ def app():
         return
 
     # =========================
+    # CLEAN YEAR (CRITICAL FIX)
+    # =========================
+    df_all["year"] = pd.to_numeric(df_all["year"], errors="coerce")
+
+    # =========================
     # FILTERS
     # =========================
     st.subheader("🔎 Filters")
@@ -59,17 +65,23 @@ def app():
             ["All"] + list(makes),
             index=(["All"] + list(makes)).index(
                 st.session_state.filters.get("make", "All")
-            )
+            ) if st.session_state.filters.get("make", "All") in (["All"] + list(makes)) else 0
         )
 
     with col3:
-        years = sorted(df_all["year"].dropna().unique())
+        years = sorted(df_all["year"].dropna().astype(int).unique())
+        year_options = ["All"] + years
+
+        current_year = st.session_state.filters.get("year", "All")
+        try:
+            current_year = int(float(current_year))
+        except:
+            current_year = "All"
+
         selected_year = st.selectbox(
             "Year",
-            ["All"] + list(years),
-            index=(["All"] + list(years)).index(
-                str(st.session_state.filters.get("year", "All"))
-            )
+            year_options,
+            index=year_options.index(current_year) if current_year in year_options else 0
         )
 
     with col4:
@@ -79,7 +91,7 @@ def app():
             statuses,
             index=statuses.index(
                 st.session_state.filters.get("status", "All")
-            )
+            ) if st.session_state.filters.get("status", "All") in statuses else 0
         )
 
     col_apply, col_clear = st.columns(2)
@@ -90,7 +102,9 @@ def app():
     with col_clear:
         clear_filters = st.button("Clear")
 
-    # APPLY
+    # =========================
+    # APPLY FILTERS
+    # =========================
     if apply_filters:
         st.session_state.filters = {
             "search": search,
@@ -101,7 +115,9 @@ def app():
         st.session_state.inventory_page = 1
         st.rerun()
 
-    # CLEAR
+    # =========================
+    # CLEAR FILTERS
+    # =========================
     if clear_filters:
         st.session_state.filters = {}
         st.session_state.inventory_page = 1
@@ -122,7 +138,10 @@ def app():
         params["make"] = filters["make"]
 
     if filters.get("year") and filters["year"] != "All":
-        params["year"] = int(float(filters["year"]))
+        try:
+            params["year"] = int(float(filters["year"]))
+        except:
+            pass
 
     if filters.get("status") and filters["status"] != "All":
         params["status"] = filters["status"]
@@ -185,9 +204,7 @@ def app():
             st.rerun()
 
     with col2:
-        st.markdown(
-            f"Page **{st.session_state.inventory_page}** of **{total_pages}**"
-        )
+        st.markdown(f"Page **{st.session_state.inventory_page}** of **{total_pages}**")
 
     with col3:
         if st.button("Next") and st.session_state.inventory_page < total_pages:
@@ -200,7 +217,6 @@ def app():
     st.subheader("📋 Inventory")
 
     header = st.columns([2, 2, 2, 1, 2, 2, 1, 1])
-
     header[0].markdown("**VIN**")
     header[1].markdown("**Make**")
     header[2].markdown("**Model**")
@@ -279,15 +295,12 @@ def app():
             status = st.selectbox(
                 "Status",
                 STATUS_OPTIONS,
-                index=STATUS_OPTIONS.index(
-                    v.get("status", "new")
-                    if v.get("status") in STATUS_OPTIONS else "new"
-                )
+                index=STATUS_OPTIONS.index(v.get("status", "new"))
+                if v.get("status") in STATUS_OPTIONS else 0
             )
 
             price = st.text_input("Price", v.get("price_purchase", ""))
 
-        # SAFE CAST
         def safe_int(val):
             try:
                 return int(float(val))
