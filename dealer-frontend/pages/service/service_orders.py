@@ -25,23 +25,27 @@ def app():
     st.subheader("Select Vehicle")
     vehicle_vin_list = df_vehicles["vin"].tolist()
     selected_vin = st.selectbox("Vehicle VIN", vehicle_vin_list)
+
     selected_vehicle = df_vehicles[df_vehicles["vin"] == selected_vin].iloc[0]
     st.markdown(f"**{selected_vehicle['year']} {selected_vehicle['make']} {selected_vehicle['model']}**")
 
     # -------------------------
-    # CREAR NUEVA ORDEN
+    # CREAR ORDEN
     # -------------------------
-    if "current_order_id" not in st.session_state:
-        st.session_state["current_order_id"] = None
-
     if st.button("🆕 Create New Order"):
         try:
-            payload = {"vehicle_id": int(selected_vehicle["id"])}  # <-- convertir a int
-            r = requests.post(f"{API_URL}/service-orders", json=payload)
+            r = requests.post(
+                f"{API_URL}/service-orders",
+                params={"vehicle_id": int(selected_vehicle["id"])}  # << CORRECTO: query param
+            )
             if r.status_code == 200:
-                order_id = r.json().get("order_id")
+                resp_json = r.json()
+                order_id = resp_json.get("order_id")
+                if order_id is None:
+                    st.error(f"Backend did not return order_id: {resp_json}")
+                    return
+                st.success(f"Order created! Order ID: {order_id}")
                 st.session_state["current_order_id"] = order_id
-                st.success(f"✅ Order created! Order ID: {order_id}")
             else:
                 st.error(f"Error creating order: {r.text}")
         except Exception as e:
@@ -50,10 +54,12 @@ def app():
     # -------------------------
     # AGREGAR ITEMS DE CATALOGO
     # -------------------------
-    if st.session_state["current_order_id"]:
+    if "current_order_id" in st.session_state:
         order_id = st.session_state["current_order_id"]
+
         st.subheader(f"Add Items to Order #{order_id}")
 
+        # Traer catálogo
         try:
             catalog = requests.get(f"{API_URL}/catalog-items").json()
             df_catalog = pd.DataFrame(catalog)
@@ -79,60 +85,16 @@ def app():
             )
 
         if st.button("➕ Add Selected Items"):
-            added_any = False
             for item_name in selected_items:
                 item = df_catalog[df_catalog["display_name"] == item_name].iloc[0]
                 payload = {
-                    "order_id": int(order_id),  # <-- asegurar int
+                    "order_id": int(order_id),
                     "catalog_item_id": int(item["id"]),
                     "quantity": int(quantity_inputs[item_name]),
                     "unit_price": float(item.get("base_price", 0))
                 }
-                try:
-                    r = requests.post(f"{API_URL}/order-details", json=payload)
-                    if r.status_code != 200:
-                        st.error(f"❌ Failed to add {item_name}: {r.text}")
-                    else:
-                        st.success(f"✅ Added {item_name} x {quantity_inputs[item_name]}")
-                        added_any = True
-                except Exception as e:
-                    st.error(f"❌ Error adding {item_name}: {e}")
-            if added_any:
-                st.experimental_rerun()
-
-    # -------------------------
-    # HISTORIAL DE ÓRDENES DEL VEHÍCULO
-    # -------------------------
-    st.subheader("Vehicle Orders History")
-    try:
-        vehicle_orders = requests.get(
-            f"{API_URL}/service-orders",
-            params={"vehicle_id": int(selected_vehicle["id"])}
-        ).json()
-    except Exception as e:
-        st.error(f"Failed to fetch vehicle orders: {e}")
-        return
-
-    # Validar que sea lista de dicts
-    if isinstance(vehicle_orders, list) and vehicle_orders:
-        df_orders = pd.DataFrame(vehicle_orders)
-        if not df_orders.empty:
-            # Colorear status
-            def color_status(val):
-                if val == "pending":
-                    color = "orange"
-                elif val == "in_progress":
-                    color = "blue"
-                elif val == "completed":
-                    color = "green"
+                r_item = requests.post(f"{API_URL}/order-details", json=payload)
+                if r_item.status_code != 200:
+                    st.error(f"Failed to add {item_name}: {r_item.text}")
                 else:
-                    color = "grey"
-                return f"color: {color}; font-weight: bold"
-
-            st.dataframe(
-                df_orders[["id", "status", "total_cost", "created_at"]].style.applymap(color_status, subset=["status"])
-            )
-        else:
-            st.info("No orders for this vehicle yet.")
-    else:
-        st.info("No orders for this vehicle yet.")
+                    st.success(f"Added {item_name} x {quantity_inputs[item_name]}")
