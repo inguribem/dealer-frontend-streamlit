@@ -30,7 +30,7 @@ def app():
     st.markdown(f"**{selected_vehicle['year']} {selected_vehicle['make']} {selected_vehicle['model']}**")
 
     # -------------------------
-    # RESET CURRENT ORDER ON VEHICLE CHANGE
+    # RESET CURRENT ORDER
     # -------------------------
     if "selected_vin_prev" not in st.session_state:
         st.session_state["selected_vin_prev"] = selected_vin
@@ -40,23 +40,24 @@ def app():
         st.session_state["selected_vin_prev"] = selected_vin
 
     # -------------------------
-    # CREATE NEW ORDER
+    # CREATE ORDER
     # -------------------------
     if st.button("🆕 Create New Order"):
         try:
             payload = {"vehicle_id": int(selected_vehicle["id"])}
             r = requests.post(f"{API_URL}/service-orders", json=payload)
+
             if r.status_code == 200:
                 order_id = r.json().get("order_id")
-                st.success(f"Order created! Order ID: {order_id}")
+                st.success(f"Order created! ID: {order_id}")
                 st.session_state["current_order_id"] = order_id
             else:
-                st.error(f"Error creating order: {r.text}")
+                st.error(r.text)
         except Exception as e:
-            st.error(f"Error connecting to backend: {e}")
+            st.error(e)
 
     # -------------------------
-    # ADD ITEMS TO CURRENT ORDER
+    # ADD ITEMS
     # -------------------------
     if st.session_state.get("current_order_id"):
         order_id = st.session_state["current_order_id"]
@@ -65,8 +66,7 @@ def app():
         try:
             catalog = requests.get(f"{API_URL}/catalog-items").json()
             df_catalog = pd.DataFrame(catalog if isinstance(catalog, list) else [])
-        except Exception as e:
-            st.error(f"Failed to load catalog items: {e}")
+        except:
             df_catalog = pd.DataFrame()
 
         if df_catalog.empty:
@@ -86,7 +86,6 @@ def app():
                     f"Quantity for {item_name}",
                     min_value=1,
                     value=1,
-                    step=1,
                     key=f"qty_{item_name}"
                 )
 
@@ -104,14 +103,12 @@ def app():
                     r = requests.post(f"{API_URL}/order-details", json=payload)
 
                     if r.status_code != 200:
-                        st.error(f"Failed to add {item_name}: {r.text}")
-                    else:
-                        st.success(f"Added {item_name}")
+                        st.error(r.text)
 
                 st.rerun()
 
     # -------------------------
-    # VEHICLE ORDER HISTORY
+    # ORDER HISTORY
     # -------------------------
     st.subheader("Vehicle Orders History")
 
@@ -130,48 +127,37 @@ def app():
         else:
             for order in vehicle_orders:
                 order_id = order.get("id")
+                current_status = order.get("status", "pending")
 
-                with st.expander(f"🧾 Order #{order_id} • Status: {order.get('status','')}"):
+                title = f"🧾 Order #{order_id} • ${order.get('total_cost', 0)} • {current_status}"
 
-                    col1, col2, col3, col4 = st.columns([2,2,2,1])
+                with st.expander(title):
 
-                    # Info
-                    col1.write(f"💰 ${order.get('total_cost', 0)}")
-                    col2.write(f"📅 {order.get('created_at', '')}")
+                    col1, col2 = st.columns([3,1])
 
-                    # Dropdown de status
                     status_options = ["pending", "in_progress", "completed"]
 
-                    current_status = order.get("status", "pending")
-
-                    selected_status = col3.selectbox(
-                        "",
+                    selected_status = col1.selectbox(
+                        "Status",
                         status_options,
-                        index=status_options.index(current_status) if current_status in status_options else 0,
+                        index=status_options.index(current_status)
+                        if current_status in status_options else 0,
                         key=f"status_{order_id}"
                     )
 
-                    # Botón solo activo si hay cambio
-                    is_changed = selected_status != current_status
+                    changed = selected_status != current_status
 
-                    if col4.button(
-                        "💾",
-                        key=f"update_order_btn_{order_id}",
-                        disabled=not is_changed
-                    ):
+                    if col2.button("💾", key=f"save_{order_id}", disabled=not changed):
                         st.session_state["update_order"] = {
                             "id": order_id,
                             "status": selected_status
                         }
 
-
                     st.divider()
 
                     # -------------------------
-                    # ORDER DETAILS
+                    # DETAILS
                     # -------------------------
-                    st.markdown("**Items**")
-
                     try:
                         details = requests.get(
                             f"{API_URL}/order-details",
@@ -191,54 +177,63 @@ def app():
 
                             for _, row in df_details.iterrows():
 
+                                did = row["id"]
+
                                 col1, col2, col3, col4, col5, col6 = st.columns([3,1,1,1,1,1])
 
                                 col1.write(row["Item"])
 
                                 col2.number_input(
-                                    f"qty_{row['id']}",
+                                    "Qty",
                                     value=int(row["quantity"]),
-                                    min_value=1
+                                    min_value=1,
+                                    key=f"qty_{did}"
                                 )
 
                                 col3.number_input(
-                                    f"price_{row['id']}",
+                                    "Price",
                                     value=float(row["unit_price"]),
                                     min_value=0.0,
-                                    step=0.01
+                                    step=0.01,
+                                    key=f"price_{did}"
                                 )
 
-                                col4.write(f"${row['quantity'] * row['unit_price']:.2f}")
+                                qty = st.session_state.get(f"qty_{did}")
+                                price = st.session_state.get(f"price_{did}")
 
-                                if col5.button("✏️", key=f"upd_btn_{row['id']}"):
-                                    st.session_state["update_detail_id"] = row["id"]
+                                col4.write(f"${(qty or 0) * (price or 0):.2f}")
 
-                                if col6.button("🗑️", key=f"del_btn_{row['id']}"):
-                                    st.session_state["delete_detail_id"] = row["id"]
+                                if col5.button("✏️", key=f"upd_{did}"):
+                                    st.session_state["update_detail_id"] = did
+
+                                if col6.button("🗑️", key=f"del_{did}"):
+                                    st.session_state["delete_detail_id"] = did
 
                     except Exception as e:
-                        st.error(f"Error loading details: {e}")
+                        st.error(e)
 
     except Exception as e:
-        st.error(f"Failed to fetch orders: {e}")
+        st.error(e)
 
     # -------------------------
-    # HANDLE ACTIONS (GLOBAL)
+    # ACTION HANDLERS
     # -------------------------
 
     # UPDATE ORDER
-    if "update_order_id" in st.session_state:
-        oid = st.session_state["update_order_id"]
-        status = st.session_state.get(f"status_{oid}")
+    if "update_order" in st.session_state:
+        data = st.session_state["update_order"]
 
-        r = requests.put(f"{API_URL}/service-orders/{oid}", json={"status": status})
+        r = requests.put(
+            f"{API_URL}/service-orders/{data['id']}",
+            json={"status": data["status"]}
+        )
 
         if r.status_code == 200:
             st.success("Order updated")
         else:
             st.error(r.text)
 
-        del st.session_state["update_order_id"]
+        del st.session_state["update_order"]
         st.rerun()
 
     # UPDATE DETAIL
@@ -248,15 +243,19 @@ def app():
         qty = st.session_state.get(f"qty_{did}")
         price = st.session_state.get(f"price_{did}")
 
-        r = requests.put(
-            f"{API_URL}/order-details/{did}",
-            json={"quantity": int(qty), "unit_price": float(price)}
-        )
+        if qty is not None and price is not None:
+            r = requests.put(
+                f"{API_URL}/order-details/{did}",
+                json={
+                    "quantity": int(qty),
+                    "unit_price": float(price)
+                }
+            )
 
-        if r.status_code == 200:
-            st.success("Detail updated")
-        else:
-            st.error(r.text)
+            if r.status_code == 200:
+                st.success("Detail updated")
+            else:
+                st.error(r.text)
 
         del st.session_state["update_detail_id"]
         st.rerun()
