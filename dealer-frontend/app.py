@@ -95,20 +95,23 @@ def sidebar_navigation():
 
         st.divider()
 
-        st.markdown("### 📊 Market")
+        st.markdown("### 📊 Reports")
 
-        if st.button("Market Search", use_container_width=True):
-            st.session_state.page = "pages.market.market_search"
-
-        if st.button("Price Trends", use_container_width=True):
-            st.session_state.page = "pages.market.price_trends"
-
+        if st.button("Vehicle Report", use_container_width=True):
+            st.session_state.page = "pages.reports.vehicle_report"
+        
         st.divider()
 
         st.markdown("### 🧰 Tools")
 
         if st.button("Profit Estimator", use_container_width=True):
             st.session_state.page = "pages.dealer.profit_estimator"
+        
+        if st.button("Market Search", use_container_width=True):
+            st.session_state.page = "pages.market.market_search"
+
+        if st.button("Price Trends", use_container_width=True):
+            st.session_state.page = "pages.market.price_trends"
 
         st.divider()
 
