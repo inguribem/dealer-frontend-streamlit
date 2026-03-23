@@ -15,10 +15,55 @@ st.set_page_config(
 )
 
 # -------------------------
+# HIDE STREAMLIT UI
+# -------------------------
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+[data-testid="stToolbar"] {display: none;}
+[data-testid="stDecoration"] {display: none;}
+[data-testid="stStatusWidget"] {display: none;}
+[data-testid="stDeployButton"] {display: none;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+
+# -------------------------
 # STYLE
 # -------------------------
 from ui.style import load_css
 load_css()
+st.markdown("""
+<style>
+/* CENTER CONTENT */
+.block-container {
+    padding-top: 4rem;
+}
+
+/* INPUTS */
+.stTextInput input {
+    border-radius: 10px;
+    padding: 10px;
+}
+
+/* BUTTON */
+.stButton button {
+    border-radius: 10px;
+    height: 45px;
+    font-weight: 600;
+}
+
+/* HEADERS CENTER */
+h1, h2, h3 {
+    text-align: center;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # -------------------------
 # AUTH CONFIG
@@ -36,7 +81,30 @@ authenticator = stauth.Authenticate(
     config["cookie"]["expiry_days"]
 )
 
-authenticator.login(location="main")
+# -------------------------
+# LOGIN UI WRAPPER
+# -------------------------
+if not st.session_state.get("authentication_status"):
+
+    col1, col2, col3 = st.columns([1,2,1])
+
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
+        # LOGO
+        st.image(
+            "https://cdn-icons-png.flaticon.com/512/743/743007.png",
+            width=120
+        )
+
+        st.markdown("## Dealer Dashboard")
+        st.markdown("### Sign in")
+
+        # LOGIN COMPONENT
+        authenticator.login(location="main")
+
+    st.stop()
+
 
 
 # -------------------------
@@ -46,6 +114,7 @@ def sidebar_navigation():
 
     with st.sidebar:
         st.markdown("## 🚗 Dealer Dashboard")
+        st.caption("Management System")
 
         name = st.session_state.get("name", "User")
         st.markdown(f"👤 **{name}**")
@@ -144,9 +213,12 @@ if st.session_state.get("authentication_status"):
     except AttributeError:
         st.error(f"Module '{st.session_state.page}' must have an app() function.")
 
-    except Exception as e:
-        st.error("Unexpected error loading page")
-        st.exception(e)
+#    except Exception as e:
+#        st.error("Unexpected error loading page")
+#        st.exception(e)
+
+    except Exception:
+        st.error("Something went wrong. Please try again.")
 
 else:
     st.warning("Please log in to continue")
