@@ -1,105 +1,113 @@
 import streamlit as st
 import requests
-import pandas as pd
 import os
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
+
 
 def app():
 
     st.title("📊 Vehicle Report")
 
-    # -------------------------
-    # LOAD VEHICLES
-    # -------------------------
-    vehicles = requests.get(f"{API_URL}/vehicles/inventory").json()
-
-    if not vehicles:
-        st.warning("No vehicles found")
-        return
-
-    df = pd.DataFrame(vehicles)
-
-    vin = st.selectbox("Select Vehicle", df["vin"].tolist())
+    # =========================
+    # INPUT VIN
+    # =========================
+    vin = st.text_input("Enter VIN")
 
     if not vin:
+        st.info("Please enter a VIN")
         return
 
-    # -------------------------
+    # =========================
     # FETCH REPORT
-    # -------------------------
+    # =========================
     try:
-        data = requests.get(f"{API_URL}/reports/vehicle/{vin}").json()
-    except:
-        st.error("Error loading report")
+        r = requests.get(
+            f"{API_URL}/reports/vehicle",
+            params={"vin": vin}
+        )
+
+        if r.status_code != 200:
+            st.error(f"API Error: {r.text}")
+            return
+
+        data = r.json()
+
+    except Exception as e:
+        st.error(f"Request failed: {e}")
+        return
+
+    # =========================
+    # VALIDATE RESPONSE
+    # =========================
+    if not isinstance(data, dict):
+        st.error("Invalid response from backend")
+        st.write(data)
         return
 
     if "error" in data:
         st.error(data["error"])
         return
 
-    vehicle = data["vehicle"]
-    orders = data["orders"]
+    if "vehicle" not in data:
+        st.error("Backend response missing 'vehicle'")
+        st.write(data)
+        return
+
+    # =========================
+    # SAFE EXTRACTION
+    # =========================
+    vehicle = data.get("vehicle", {})
+    orders = data.get("orders", [])
+    summary = data.get("summary", {})
 
     # =========================
     # VEHICLE INFO
     # =========================
     st.subheader("🚗 Vehicle Info")
 
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("VIN", vehicle["vin"])
-    col2.metric("Make / Model", f"{vehicle['make']} {vehicle['model']}")
-    col3.metric("Year", vehicle["year"])
-
-    col4, col5 = st.columns(2)
-
-    col4.metric("Purchase Price", f"${vehicle['price_purchase']:,.0f}")
-    col5.metric("Status", vehicle["status"].capitalize())
-
-    st.divider()
+    st.write(f"**VIN:** {vehicle.get('vin')}")
+    st.write(f"**Make:** {vehicle.get('make')}")
+    st.write(f"**Model:** {vehicle.get('model')}")
+    st.write(f"**Year:** {vehicle.get('year')}")
+    st.write(f"**Status:** {vehicle.get('status')}")
+    st.write(f"**Purchase Price:** ${vehicle.get('price_purchase', 0):,.0f}")
 
     # =========================
     # SUMMARY
     # =========================
-    total_orders = len(orders)
-    total_spent = sum(o["total_cost"] for o in orders)
+    st.subheader("📈 Summary")
 
     col1, col2 = st.columns(2)
-    col1.metric("Total Orders", total_orders)
-    col2.metric("Total Service Cost", f"${total_spent:,.0f}")
 
-    st.divider()
+    col1.metric("Total Orders", summary.get("total_orders", 0))
+    col2.metric("Total Invested", f"${summary.get('total_spent', 0):,.0f}")
 
     # =========================
-    # ORDERS DETAIL
+    # ORDERS
     # =========================
-    st.subheader("🧾 Orders")
+    st.subheader("🧾 Service Orders")
 
     if not orders:
-        st.info("No orders found for this vehicle.")
+        st.info("No orders found")
         return
 
     for order in orders:
 
-        title = f"Order #{order['id']} • ${order['total_cost']:,.0f} • {order['status']}"
+        title = f"Order #{order.get('id')} • ${order.get('total_cost', 0):.0f} • {order.get('status')}"
 
         with st.expander(title):
 
-            details = order["details"]
+            st.write(f"Created: {order.get('created_at')}")
+
+            details = order.get("details", [])
 
             if not details:
-                st.info("No items in this order")
-                continue
-
-            df_details = pd.DataFrame(details)
-
-            df_details = df_details[[
-                "item", "quantity", "unit_price", "subtotal"
-            ]]
-
-            df_details.columns = [
-                "Item", "Qty", "Unit Price", "Subtotal"
-            ]
-
-            st.dataframe(df_details, use_container_width=True)
+                st.info("No details in this order")
+            else:
+                for d in details:
+                    st.write(
+                        f"- {d.get('name')} ({d.get('type')}) | "
+                        f"Qty: {d.get('quantity')} | "
+                        f"${d.get('unit_price')} → ${d.get('subtotal')}"
+                    )
