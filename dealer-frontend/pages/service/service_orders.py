@@ -103,47 +103,137 @@ def app():
     # VEHICLE ORDER HISTORY
     # -------------------------
     st.subheader("Vehicle Orders History")
+
     try:
         vehicle_orders = requests.get(
-            f"{API_URL}/service-orders", params={"vehicle_id": int(selected_vehicle["id"])}
+            f"{API_URL}/service-orders",
+            params={"vehicle_id": int(selected_vehicle["id"])}
         ).json()
 
         if not vehicle_orders or not isinstance(vehicle_orders, list):
             vehicle_orders = []
 
-        df_orders = pd.DataFrame(vehicle_orders)
-        if df_orders.empty:
+        if not vehicle_orders:
             st.info("No orders for this vehicle yet.")
-        else:
-            st.dataframe(df_orders[["id", "status", "total_cost", "created_at"]])
 
-            # -------------------------
-            # VIEW ORDER DETAILS PER ORDER
-            # -------------------------
-            st.subheader("Order Details")
+        else:
             for order in vehicle_orders:
                 order_id = order.get("id")
-                st.markdown(f"**Order #{order_id} - Status: {order.get('status', '')}**")
-                try:
-                    details = requests.get(f"{API_URL}/order-details", params={"order_id": int(order_id)}).json()
-                    if not details or not isinstance(details, list):
-                        details = []
-                    df_details = pd.DataFrame(details)
 
-                    if df_details.empty:
-                        st.info("No items in this order yet.")
-                    else:
-                        # Map catalog_item_id to catalog name
-                        catalog_items = requests.get(f"{API_URL}/catalog-items").json()
-                        df_catalog = pd.DataFrame(catalog_items)
-                        id_to_name = df_catalog.set_index("id")["name"].to_dict()
-                        df_details["Item"] = df_details["catalog_item_id"].map(id_to_name)
-                        df_details["Total"] = df_details["quantity"] * df_details["unit_price"]
+                # -------------------------
+                # EXPANDER POR ORDEN
+                # -------------------------
+                with st.expander(f"🧾 Order #{order_id} • Status: {order.get('status','')}"):
 
-                        st.dataframe(df_details[["Item", "quantity", "unit_price", "Total"]])
+                    # -------- ORDER HEADER --------
+                    col1, col2, col3 = st.columns([2,2,1])
 
-                except Exception as e:
-                    st.error(f"Failed to fetch order details for order #{order_id}: {e}")
+                    col1.write(f"💰 Total: ${order.get('total_cost', 0)}")
+                    col2.write(f"📅 {order.get('created_at', '')}")
+
+                    new_status = col3.text_input(
+                        f"status_{order_id}",
+                        value=order.get("status",""),
+                        label_visibility="collapsed"
+                    )
+
+                    if st.button("✏️ Update Status", key=f"update_order_{order_id}"):
+                        r = requests.put(
+                            f"{API_URL}/service-orders/{order_id}",
+                            json={"status": new_status}
+                        )
+                        if r.status_code == 200:
+                            st.success("Status updated")
+                            st.rerun()
+                        else:
+                            st.error(r.text)
+
+                    st.divider()
+
+                    # -------------------------
+                    # ORDER DETAILS
+                    # -------------------------
+                    st.markdown("**Items**")
+
+                    try:
+                        details = requests.get(
+                            f"{API_URL}/order-details",
+                            params={"order_id": int(order_id)}
+                        ).json()
+
+                        if not details or not isinstance(details, list):
+                            details = []
+
+                        df_details = pd.DataFrame(details)
+
+                        if df_details.empty:
+                            st.info("No items in this order yet.")
+
+                        else:
+                            # map catalog names
+                            catalog_items = requests.get(f"{API_URL}/catalog-items").json()
+                            df_catalog = pd.DataFrame(catalog_items)
+                            id_to_name = df_catalog.set_index("id")["name"].to_dict()
+
+                            df_details["Item"] = df_details["catalog_item_id"].map(id_to_name)
+
+                            # -------- TABLE HEADER --------
+                            h1, h2, h3, h4, h5, h6 = st.columns([3,1,1,1,1,1])
+                            h1.markdown("**Item**")
+                            h2.markdown("**Qty**")
+                            h3.markdown("**Price**")
+                            h4.markdown("**Total**")
+                            h5.markdown("")
+                            h6.markdown("")
+
+                            # -------- ROWS --------
+                            for _, row in df_details.iterrows():
+
+                                col1, col2, col3, col4, col5, col6 = st.columns([3,1,1,1,1,1])
+
+                                col1.write(row["Item"])
+
+                                qty = col2.number_input(
+                                    f"qty_{row['id']}",
+                                    value=int(row["quantity"]),
+                                    min_value=1
+                                )
+
+                                price = col3.number_input(
+                                    f"price_{row['id']}",
+                                    value=float(row["unit_price"]),
+                                    min_value=0.0,
+                                    step=0.01
+                                )
+
+                                col4.write(f"${qty * price:.2f}")
+
+                                # UPDATE
+                                if col5.button("✏️", key=f"upd_detail_{row['id']}"):
+                                    r = requests.put(
+                                        f"{API_URL}/order-details/{row['id']}",
+                                        json={
+                                            "quantity": int(qty),
+                                            "unit_price": float(price)
+                                        }
+                                    )
+                                    if r.status_code == 200:
+                                        st.success("Updated")
+                                        st.rerun()
+                                    else:
+                                        st.error(r.text)
+
+                                # DELETE
+                                if col6.button("🗑️", key=f"del_detail_{row['id']}"):
+                                    r = requests.delete(f"{API_URL}/order-details/{row['id']}")
+                                    if r.status_code == 200:
+                                        st.success("Deleted")
+                                        st.rerun()
+                                    else:
+                                        st.error(r.text)
+
+                    except Exception as e:
+                        st.error(f"Error loading details: {e}")
 
     except Exception as e:
-        st.error(f"Failed to fetch all service orders: {e}")
+        st.error(f"Failed to fetch orders: {e}")
