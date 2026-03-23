@@ -10,29 +10,42 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 # =========================
 # PDF GENERATOR
 # =========================
+def clean_text(text):
+    if text is None:
+        return ""
+    return str(text).encode("latin-1", "replace").decode("latin-1")
+
+
 def generate_pdf(vehicle, orders):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
-    pdf.cell(200, 10, "Vehicle Report", ln=True, align="C")
+    pdf.cell(200, 10, clean_text("Vehicle Report"), ln=True, align="C")
     pdf.ln(5)
 
-    pdf.cell(200, 8, f"VIN: {vehicle.get('vin')}", ln=True)
-    pdf.cell(200, 8, f"{vehicle.get('year')} {vehicle.get('make')} {vehicle.get('model')}", ln=True)
-    pdf.cell(200, 8, f"Status: {vehicle.get('status')}", ln=True)
-    pdf.cell(200, 8, f"Purchase Price: ${vehicle.get('price_purchase', 0):,.0f}", ln=True)
+    pdf.cell(200, 8, clean_text(f"VIN: {vehicle.get('vin')}"), ln=True)
+    pdf.cell(200, 8, clean_text(f"{vehicle.get('year')} {vehicle.get('make')} {vehicle.get('model')}"), ln=True)
+    pdf.cell(200, 8, clean_text(f"Status: {vehicle.get('status')}"), ln=True)
+    pdf.cell(200, 8, clean_text(f"Purchase Price: ${vehicle.get('price_purchase', 0):,.0f}"), ln=True)
 
     pdf.ln(5)
 
     for order in orders:
-        pdf.cell(200, 8, f"Order #{order['id']} • {order['status']} • ${order['total_cost']:.0f}", ln=True)
+        pdf.cell(
+            200,
+            8,
+            clean_text(f"Order #{order['id']} - {order['status']} - ${order['total_cost']:.0f}"),
+            ln=True
+        )
 
         for d in order.get("details", []):
             pdf.cell(
                 200,
                 6,
-                f"- {d['name']} ({d['type']}) | Qty: {d['quantity']} | ${d['subtotal']:.2f}",
+                clean_text(
+                    f"- {d['name']} ({d['type']}) | Qty: {d['quantity']} | ${d['subtotal']:.2f}"
+                ),
                 ln=True
             )
 
