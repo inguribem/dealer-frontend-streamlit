@@ -15,21 +15,43 @@ st.set_page_config(
 )
 
 # -------------------------
-# HIDE STREAMLIT UI
+# HIDE STREAMLIT COMPLETELY
 # -------------------------
-hide_streamlit_style = """
+st.markdown("""
 <style>
+
+/* Main menu (hamburger) */
 #MainMenu {visibility: hidden;}
+
+/* Footer */
 footer {visibility: hidden;}
+
+/* Header */
 header {visibility: hidden;}
 
-[data-testid="stToolbar"] {display: none;}
-[data-testid="stDecoration"] {display: none;}
-[data-testid="stStatusWidget"] {display: none;}
-[data-testid="stDeployButton"] {display: none;}
+/* Top toolbar (Manage App, Deploy, etc) */
+[data-testid="stToolbar"] {display: none !important;}
+
+/* Decoration line */
+[data-testid="stDecoration"] {display: none !important;}
+
+/* Status widget (top right user / cloud info) */
+[data-testid="stStatusWidget"] {display: none !important;}
+
+/* Deploy button */
+[data-testid="stDeployButton"] {display: none !important;}
+
+/* App navigation (App / Dashboard tabs) */
+[data-testid="stSidebarNav"] {display: none !important;}
+
+/* Prevent top padding caused by hidden header */
+.block-container {
+    padding-top: 2rem;
+}
+
 </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+
 
 
 # -------------------------
