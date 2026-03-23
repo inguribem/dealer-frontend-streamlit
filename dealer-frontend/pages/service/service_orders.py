@@ -133,19 +133,37 @@ def app():
 
                 with st.expander(f"🧾 Order #{order_id} • Status: {order.get('status','')}"):
 
-                    col1, col2, col3 = st.columns([2,2,1])
+                    col1, col2, col3, col4 = st.columns([2,2,2,1])
 
+                    # Info
                     col1.write(f"💰 ${order.get('total_cost', 0)}")
                     col2.write(f"📅 {order.get('created_at', '')}")
 
-                    st.text_input(
-                        f"status_{order_id}",
-                        value=order.get("status",""),
-                        label_visibility="collapsed"
+                    # Dropdown de status
+                    status_options = ["pending", "in_progress", "completed"]
+
+                    current_status = order.get("status", "pending")
+
+                    selected_status = col3.selectbox(
+                        "",
+                        status_options,
+                        index=status_options.index(current_status) if current_status in status_options else 0,
+                        key=f"status_{order_id}"
                     )
 
-                    if st.button("✏️ Update Status", key=f"update_order_btn_{order_id}"):
-                        st.session_state["update_order_id"] = order_id
+                    # Botón solo activo si hay cambio
+                    is_changed = selected_status != current_status
+
+                    if col4.button(
+                        "💾",
+                        key=f"update_order_btn_{order_id}",
+                        disabled=not is_changed
+                    ):
+                        st.session_state["update_order"] = {
+                            "id": order_id,
+                            "status": selected_status
+                        }
+
 
                     st.divider()
 
