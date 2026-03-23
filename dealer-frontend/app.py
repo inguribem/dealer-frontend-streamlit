@@ -37,32 +37,6 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # -------------------------
 from ui.style import load_css
 load_css()
-st.markdown("""
-<style>
-/* CENTER CONTENT */
-.block-container {
-    padding-top: 4rem;
-}
-
-/* INPUTS */
-.stTextInput input {
-    border-radius: 10px;
-    padding: 10px;
-}
-
-/* BUTTON */
-.stButton button {
-    border-radius: 10px;
-    height: 45px;
-    font-weight: 600;
-}
-
-/* HEADERS CENTER */
-h1, h2, h3 {
-    text-align: center;
-}
-</style>
-""", unsafe_allow_html=True)
 
 
 # -------------------------
