@@ -7,40 +7,36 @@ from fpdf import FPDF
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 
+# =========================
+# PDF GENERATOR
+# =========================
 def generate_pdf(vehicle, orders):
     pdf = FPDF()
     pdf.add_page()
-
     pdf.set_font("Arial", size=12)
 
-    # =========================
-    # TITLE
-    # =========================
-    pdf.cell(200, 10, txt="Vehicle Report", ln=True, align="C")
+    pdf.cell(200, 10, "Vehicle Report", ln=True, align="C")
+    pdf.ln(5)
+
+    pdf.cell(200, 8, f"VIN: {vehicle.get('vin')}", ln=True)
+    pdf.cell(200, 8, f"{vehicle.get('year')} {vehicle.get('make')} {vehicle.get('model')}", ln=True)
+    pdf.cell(200, 8, f"Status: {vehicle.get('status')}", ln=True)
+    pdf.cell(200, 8, f"Purchase Price: ${vehicle.get('price_purchase', 0):,.0f}", ln=True)
 
     pdf.ln(5)
 
-    # =========================
-    # VEHICLE INFO
-    # =========================
-    pdf.cell(200, 10, txt=f"VIN: {vehicle.get('vin')}", ln=True)
-    pdf.cell(200, 10, txt=f"{vehicle.get('year')} {vehicle.get('make')} {vehicle.get('model')}", ln=True)
-    pdf.cell(200, 10, txt=f"Status: {vehicle.get('status')}", ln=True)
-    pdf.cell(200, 10, txt=f"Purchase Price: ${vehicle.get('price_purchase', 0):,.0f}", ln=True)
-
-    pdf.ln(5)
-
-    # =========================
-    # ORDERS
-    # =========================
     for order in orders:
-        pdf.cell(200, 10, txt=f"Order #{order['id']} - {order['status']} - ${order['total_cost']:.0f}", ln=True)
+        pdf.cell(200, 8, f"Order #{order['id']} • {order['status']} • ${order['total_cost']:.0f}", ln=True)
 
         for d in order.get("details", []):
-            line = f"  - {d['name']} ({d['type']}), Qty: {d['quantity']}, ${d['subtotal']:.2f}"
-            pdf.cell(200, 8, txt=line, ln=True)
+            pdf.cell(
+                200,
+                6,
+                f"- {d['name']} ({d['type']}) | Qty: {d['quantity']} | ${d['subtotal']:.2f}",
+                ln=True
+            )
 
-        pdf.ln(3)
+        pdf.ln(2)
 
     return pdf.output(dest="S").encode("latin-1")
 
@@ -64,19 +60,10 @@ def app():
         return
 
     # =========================
-    # VIN SELECTOR
+    # VIN DROPDOWN
     # =========================
     vin_list = df_vehicles["vin"].dropna().tolist()
-
     selected_vin = st.selectbox("Select Vehicle VIN", vin_list)
-
-    selected_vehicle = df_vehicles[df_vehicles["vin"] == selected_vin].iloc[0]
-
-    st.markdown(
-        f"**{selected_vehicle.get('year')} "
-        f"{selected_vehicle.get('make')} "
-        f"{selected_vehicle.get('model')}**"
-    )
 
     # =========================
     # FETCH REPORT
@@ -107,33 +94,28 @@ def app():
     summary = data.get("summary", {})
 
     # =========================
-    # VEHICLE INFO
+    # VEHICLE INFO (MISMO FORMATO)
     # =========================
     st.subheader("🚗 Vehicle Info")
 
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Year", vehicle.get("year"))
-    col2.metric("Make", vehicle.get("make"))
-    col3.metric("Model", vehicle.get("model"))
-
-    col4, col5 = st.columns(2)
-
-    col4.metric("Status", vehicle.get("status"))
-    col5.metric("Purchase Price", f"${vehicle.get('price_purchase', 0):,.0f}")
+    st.write(f"**VIN:** {vehicle.get('vin')}")
+    st.write(f"**Make:** {vehicle.get('make')}")
+    st.write(f"**Model:** {vehicle.get('model')}")
+    st.write(f"**Year:** {vehicle.get('year')}")
+    st.write(f"**Status:** {vehicle.get('status')}")
+    st.write(f"**Purchase Price:** ${vehicle.get('price_purchase', 0):,.0f}")
 
     # =========================
-    # SUMMARY
+    # SUMMARY (MISMO FORMATO)
     # =========================
     st.subheader("📈 Summary")
 
     col1, col2 = st.columns(2)
-
     col1.metric("Total Orders", summary.get("total_orders", 0))
     col2.metric("Total Invested", f"${summary.get('total_spent', 0):,.0f}")
 
     # =========================
-    # EXPORT
+    # EXPORT (NUEVO)
     # =========================
     st.subheader("📥 Export Report")
 
@@ -157,28 +139,29 @@ def app():
     # CSV
     if export_rows:
         df_export = pd.DataFrame(export_rows)
-
         csv = df_export.to_csv(index=False).encode("utf-8")
 
         col1.download_button(
-            label="⬇️ Download CSV",
+            "⬇️ Download CSV",
             data=csv,
             file_name=f"vehicle_report_{selected_vin}.csv",
             mime="text/csv"
         )
+    else:
+        col1.info("No data to export")
 
     # PDF
     pdf_bytes = generate_pdf(vehicle, orders)
 
     col2.download_button(
-        label="📄 Download PDF",
+        "📄 Download PDF",
         data=pdf_bytes,
         file_name=f"vehicle_report_{selected_vin}.pdf",
         mime="application/pdf"
     )
 
     # =========================
-    # ORDERS
+    # ORDERS (MISMO FORMATO)
     # =========================
     st.subheader("🧾 Service Orders")
 
@@ -188,11 +171,11 @@ def app():
 
     for order in orders:
 
-        title = f"Order #{order.get('id')} • ${order.get('total_cost', 0):.0f} • {order.get('status')}"
+        title = f"Order #{order['id']} • ${order['total_cost']:.0f} • {order['status']}"
 
         with st.expander(title):
 
-            st.write(f"Created: {order.get('created_at')}")
+            st.write(f"Created: {order['created_at']}")
 
             details = order.get("details", [])
 
@@ -201,7 +184,7 @@ def app():
             else:
                 for d in details:
                     st.write(
-                        f"- {d.get('name')} ({d.get('type')}) | "
-                        f"Qty: {d.get('quantity')} | "
-                        f"${d.get('unit_price')} → ${d.get('subtotal')}"
+                        f"- {d['name']} ({d['type']}) | "
+                        f"Qty: {d['quantity']} | "
+                        f"${d['unit_price']} → ${d['subtotal']}"
                     )
