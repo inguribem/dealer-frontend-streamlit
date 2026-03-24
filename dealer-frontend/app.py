@@ -108,7 +108,7 @@ if not st.session_state.get("authentication_status"):
 
         st.markdown("## Dealer Dashboard")
         st.markdown("### Sign in")
-        st.write("API_URL:", os.getenv("API_URL"))
+        
         # LOGIN COMPONENT
         authenticator.login(location="main")
 

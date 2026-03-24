@@ -5,7 +5,6 @@ import os
 from fpdf import FPDF
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
-st.write("API_URL:", os.getenv("API_URL"))
 
 # =========================
 # PDF GENERATOR
