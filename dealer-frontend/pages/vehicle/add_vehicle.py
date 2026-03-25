@@ -19,10 +19,27 @@ def app():
     if "vin_summary" not in st.session_state:
         st.session_state["vin_summary"] = {}
 
+    if "vin_decoded" not in st.session_state:
+        st.session_state["vin_decoded"] = False
+
+    if "last_vin" not in st.session_state:
+        st.session_state["last_vin"] = ""
+
+    # Reset decode state if VIN changes
+    if vin != st.session_state["last_vin"]:
+        st.session_state["vin_decoded"] = False
+        st.session_state["vin_summary"] = {}
+        st.session_state["vin_raw"] = {}
+        st.session_state["last_vin"] = vin
+
     # -------------------------
     # SAVE VEHICLE
     # -------------------------
     def save_vehicle(year, make, model, trim, price_purchase, miles):
+
+        if not st.session_state["vin_decoded"]:
+            st.error("You must decode the VIN before saving the vehicle.")
+            return
 
         payload = {
             "vin": vin,
@@ -56,35 +73,40 @@ def app():
 
     with tab1:
 
-        if st.button("Decode VIN") and vin:
+        if st.button("Decode VIN"):
+            if not vin:
+                st.error("Please enter a VIN before decoding.")
+            else:
+                url = f"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{vin}?format=json"
+                r = requests.get(url)
+                data = r.json()
 
-            url = f"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{vin}?format=json"
-            r = requests.get(url)
-            data = r.json()
+                resultados = {
+                    item['Variable']: item['Value']
+                    for item in data['Results']
+                    if item['Value']
+                }
 
-            resultados = {
-                item['Variable']: item['Value']
-                for item in data['Results']
-                if item['Value']
-            }
+                st.session_state["vin_raw"] = resultados
 
-            st.session_state["vin_raw"] = resultados
+                st.session_state["vin_summary"] = {
+                    "year": resultados.get("Model Year"),
+                    "make": resultados.get("Make"),
+                    "model": resultados.get("Model"),
+                    "trim": resultados.get("Trim"),
+                    "vehicle_type": resultados.get("Vehicle Type"),
+                    "body_class": resultados.get("Body Class"),
+                    "engine": resultados.get("Engine Model"),
+                    "fuel": resultados.get("Fuel Type - Primary"),
+                    "transmission": resultados.get("Transmission Style"),
+                    "manufacturer": resultados.get("Manufacturer Name"),
+                    "plant_city": resultados.get("Plant City"),
+                    "plant_country": resultados.get("Plant Country"),
+                    "plant_company": resultados.get("Plant Company Name"),
+                }
 
-            st.session_state["vin_summary"] = {
-                "year": resultados.get("Model Year"),
-                "make": resultados.get("Make"),
-                "model": resultados.get("Model"),
-                "trim": resultados.get("Trim"),
-                "vehicle_type": resultados.get("Vehicle Type"),
-                "body_class": resultados.get("Body Class"),
-                "engine": resultados.get("Engine Model"),
-                "fuel": resultados.get("Fuel Type - Primary"),
-                "transmission": resultados.get("Transmission Style"),
-                "manufacturer": resultados.get("Manufacturer Name"),
-                "plant_city": resultados.get("Plant City"),
-                "plant_country": resultados.get("Plant Country"),
-                "plant_company": resultados.get("Plant Company Name"),
-            }
+                st.session_state["vin_decoded"] = True
+                st.success("VIN decoded successfully")
 
         s = st.session_state.get("vin_summary", {})
 
@@ -101,9 +123,10 @@ def app():
                 st.metric("Fuel", s.get("fuel"))
                 st.metric("Transmission", s.get("transmission"))
 
-        if st.button("💾 Save Vehicle (Quick)"):
-
-            save_vehicle(
+        st.button(
+            "💾 Save Vehicle (Quick)",
+            disabled=not st.session_state["vin_decoded"],
+            on_click=lambda: save_vehicle(
                 s.get("year"),
                 s.get("make"),
                 s.get("model"),
@@ -111,6 +134,7 @@ def app():
                 None,
                 None
             )
+        )
 
     # =========================
     # TAB 2: VEHICLE DATA
@@ -127,9 +151,11 @@ def app():
         price_purchase = st.text_input("Purchase Price")
         miles = st.text_input("Miles")
 
-        if st.button("💾 Save Vehicle"):
-
-            save_vehicle(year, make, model, trim, price_purchase, miles)
+        st.button(
+            "💾 Save Vehicle",
+            disabled=not st.session_state["vin_decoded"],
+            on_click=lambda: save_vehicle(year, make, model, trim, price_purchase, miles)
+        )
 
     # =========================
     # TAB 3: MANUFACTURER
@@ -154,9 +180,10 @@ def app():
             st.write("**Plant Country**")
             st.write(s.get("plant_country"))
 
-        if st.button("💾 Save Vehicle (From Manufacturer Tab)"):
-
-            save_vehicle(
+        st.button(
+            "💾 Save Vehicle (From Manufacturer Tab)",
+            disabled=not st.session_state["vin_decoded"],
+            on_click=lambda: save_vehicle(
                 s.get("year"),
                 s.get("make"),
                 s.get("model"),
@@ -164,6 +191,7 @@ def app():
                 None,
                 None
             )
+        )
 
     # =========================
     # TAB 4: RAW DATA
@@ -175,9 +203,10 @@ def app():
 
         s = st.session_state.get("vin_summary", {})
 
-        if st.button("💾 Save Vehicle (Raw)"):
-
-            save_vehicle(
+        st.button(
+            "💾 Save Vehicle (Raw)",
+            disabled=not st.session_state["vin_decoded"],
+            on_click=lambda: save_vehicle(
                 s.get("year"),
                 s.get("make"),
                 s.get("model"),
@@ -185,3 +214,4 @@ def app():
                 None,
                 None
             )
+        )

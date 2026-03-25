@@ -49,19 +49,6 @@ header {visibility: hidden;}
     padding-top: 2rem;
 }
 
-/* Capa blanca encima del botón */
-div[data-testid="stAppViewContainer"]::after {
-    content: "";
-    position: fixed;
-    bottom: 0px;
-    right: 0px;
-    width: 120px;
-    height: 120px;
-    background: #f5f7fb; /* mismo fondo de tu app */
-    z-index: 999999;
-    pointer-events: none;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
